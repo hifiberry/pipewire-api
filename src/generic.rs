@@ -643,7 +643,7 @@ pub async fn get_device_volume(
 
 // Set device volume via Route parameters
 pub async fn set_device_volume(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     Path(id): Path<u32>,
     Json(request): Json<SetVolumeRequest>,
 ) -> Result<Json<DeviceInfo>, ApiError> {
