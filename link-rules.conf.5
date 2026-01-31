@@ -1,0 +1,221 @@
+.TH LINK-RULES.CONF 5 "January 2026" "pipewire-api" "File Formats Manual"
+.SH NAME
+link-rules.conf \- configuration file for pipewire-api automatic link management
+.SH SYNOPSIS
+.nf
+/etc/pipewire-api/link-rules.conf
+~/.config/pipewire-api/link-rules.conf
+.fi
+.SH DESCRIPTION
+The
+.B link-rules.conf
+file configures automatic audio link creation and management for the pipewire-api server.
+Rules are defined in JSON format and can automatically create persistent links between
+PipeWire audio nodes.
+.PP
+Rules are loaded from two locations (in order of precedence):
+.IP \(bu 2
+System-wide: \fB/etc/pipewire-api/link-rules.conf\fP
+.IP \(bu 2
+User-specific: \fB~/.config/pipewire-api/link-rules.conf\fP
+.PP
+Both files are loaded and their rules are combined.
+.SH FILE FORMAT
+The configuration file uses JSON format containing an array of link rule objects.
+.SS Basic Structure
+.EX
+[
+  {
+    "name": "My Link Rule",
+    "source": {
+      "node.name": "^source_node_pattern$"
+    },
+    "destination": {
+      "object.path": "destination:pattern"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 10
+  }
+]
+.EE
+.SH RULE PROPERTIES
+.SS Required Properties
+.TP
+.B name
+(string) Descriptive name for the link rule. Used as the \fBobject.name\fP property
+for created links in PipeWire. This name will appear in tools like \fBpw-dump\fP.
+.TP
+.B type
+(string) Type of operation. Currently only \fB"link"\fP is supported.
+.TP
+.B source
+(object) Identifies the source (output) node. Must contain at least one of:
+.RS
+.IP \(bu 2
+\fBnode.name\fP: Regular expression pattern to match node name
+.IP \(bu 2
+\fBnode.nick\fP: Regular expression pattern to match node nickname
+.IP \(bu 2
+\fBobject.path\fP: Regular expression pattern to match object path
+.RE
+.TP
+.B destination
+(object) Identifies the destination (input) node. Same structure as \fBsource\fP.
+.SS Optional Properties
+.TP
+.B link_at_startup
+(boolean, default: true) Whether to apply this rule when the server starts.
+.TP
+.B relink_every
+(number, default: 0) How often to check and recreate links, in seconds.
+.RS
+.IP \(bu 2
+\fB0\fP: Create link only once. If removed, it won't be recreated.
+.IP \(bu 2
+\fB>0\fP: Check every N seconds and recreate the link if it doesn't exist.
+.RE
+.SH PATTERN MATCHING
+All node identifiers use \fBregular expressions\fP for matching. Common patterns:
+.TP
+.B ^node_name$
+Exact match
+.TP
+.B ^prefix
+Starts with "prefix"
+.TP
+.B substring
+Contains "substring"
+.TP
+.B .*
+Matches any characters (wildcard)
+.TP
+.B node[12]
+Matches "node1" or "node2"
+.PP
+Remember to escape special regex characters with backslashes:
+.RS
+.IP \(bu 2
+\fB.\fP becomes \fB\\\\.\fP (to match a literal dot)
+.IP \(bu 2
+\fB*\fP becomes \fB\\\\*\fP (to match a literal asterisk)
+.RE
+.SH EXAMPLES
+.SS Simple Link
+Link a specific output node to a specific input node:
+.EX
+[
+  {
+    "name": "MyApp to Speakers",
+    "source": {
+      "node.name": "^myapp\\\\.output$"
+    },
+    "destination": {
+      "node.name": "^alsa_output\\\\.speakers$"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 0
+  }
+]
+.EE
+.SS Pattern Matching with Monitoring
+Link any SpeakerEQ output to HiFiBerry playback, checking every 10 seconds:
+.EX
+[
+  {
+    "name": "SpeakerEQ to HiFiBerry",
+    "source": {
+      "node.name": "^speakereq.x\\\\.\\\\.output$"
+    },
+    "destination": {
+      "object.path": "alsa:.*:sndrpihifiberry:.*:playback"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 10
+  }
+]
+.EE
+.SS Multiple Rules
+.EX
+[
+  {
+    "name": "Browser to Default",
+    "source": {
+      "node.name": "^firefox.*"
+    },
+    "destination": {
+      "node.name": "^alsa_output\\\\.default$"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 5
+  },
+  {
+    "name": "Music Player to DAC",
+    "source": {
+      "node.name": "^mpd\\\\.output$"
+    },
+    "destination": {
+      "object.path": "alsa:.*:usb-dac:.*:playback"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 0
+  }
+]
+.EE
+.SH TESTING
+To test your configuration:
+.IP 1. 3
+Create the configuration file in the appropriate location
+.IP 2. 3
+Run with logging:
+.B RUST_LOG=info pipewire-api
+.IP 3. 3
+Check the logs for messages like:
+.RS
+.IP \(bu 2
+Loaded N rule(s) from system config
+.IP \(bu 2
+Loaded N rule(s) from user config
+.IP \(bu 2
+Startup rule 0 applied: X/Y links successful
+.RE
+.SH TROUBLESHOOTING
+.SS Rules not loading
+.IP \(bu 2
+Check JSON syntax: \fBjq . < link-rules.conf\fP
+.IP \(bu 2
+Verify file permissions are readable
+.IP \(bu 2
+Check logs: \fBRUST_LOG=debug pipewire-api\fP
+.SS Rules not matching nodes
+.IP \(bu 2
+List available nodes: \fBpw-dump | jq '.[] | select(.type == "PipeWire:Interface:Node")'\fP
+.IP \(bu 2
+Check node properties: \fBnode.name\fP, \fBnode.nick\fP, \fBobject.path\fP
+.IP \(bu 2
+Test regex patterns at https://regex101.com/
+.SS Links not persisting
+.IP \(bu 2
+Check if links appear: \fBpw-link -l\fP
+.IP \(bu 2
+Inspect link properties: \fBpw-dump | jq '.[] | select(.type == "PipeWire:Interface:Link")'\fP
+.SH FILES
+.TP
+.B /etc/pipewire-api/link-rules.conf
+System-wide link rules configuration
+.TP
+.B ~/.config/pipewire-api/link-rules.conf
+User-specific link rules configuration
+.SH SEE ALSO
+.BR pipewire-api (1),
+.BR pw-link (1),
+.BR pw-dump (1),
+.BR pipewire (1)
+.PP
+PipeWire documentation: https://docs.pipewire.org/
+.SH AUTHORS
+HiFiBerry <info@hifiberry.com>
