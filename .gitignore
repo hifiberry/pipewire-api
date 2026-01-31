@@ -4,3 +4,8 @@ target/*
 debian/pipewire-api/*
 debian/debhelper-build-stamp
 .vscode/settings.json
+debian/pipewire-api.debhelper.log
+debian/pipewire-api.postinst.debhelper
+debian/pipewire-api.postrm.debhelper
+debian/pipewire-api.substvars
+debian/files
