@@ -265,6 +265,55 @@ Apply all default link rules configured in the server.
 }
 ```
 
+#### Get Link Rules Status
+```
+GET /links/status
+```
+Returns the status of all configured link rules, including when they last ran and what they did.
+
+**Response:**
+```json
+{
+  "rules": [
+    {
+      "index": 0,
+      "rule": {
+        "name": "SpeakerEQ to HiFiBerry",
+        "source": {
+          "node.name": "^speakereq.x.\\.output$",
+          "node.nick": null,
+          "object.path": null
+        },
+        "destination": {
+          "node.name": null,
+          "node.nick": null,
+          "object.path": "alsa.*sndrpihifiberry.*playback"
+        },
+        "type": "link",
+        "link_at_startup": true,
+        "relink_every": 5
+      },
+      "status": {
+        "last_run": "2026-01-31T14:32:15.123456Z",
+        "last_run_timestamp": 1738330335,
+        "links_created": 2,
+        "links_failed": 0,
+        "last_error": null,
+        "total_runs": 42
+      }
+    }
+  ]
+}
+```
+
+Status fields:
+- `last_run`: ISO 8601 timestamp of the last execution (null if never run)
+- `last_run_timestamp`: Unix timestamp of the last execution (null if never run)
+- `links_created`: Number of links successfully created on the last run
+- `links_failed`: Number of links that failed on the last run
+- `last_error`: Last error message, if any (null if no error)
+- `total_runs`: Total number of times this rule has been executed
+
 
 ### SpeakerEQ Endpoints
 

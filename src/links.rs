@@ -21,6 +21,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/links/batch", post(apply_batch_rules))
         .route("/api/v1/links/default", get(get_default_rules))
         .route("/api/v1/links/apply-defaults", post(apply_default_rules))
+        .route("/api/v1/links/status", get(get_link_rules_status))
         .with_state(state)
 }
 
@@ -311,5 +312,80 @@ pub async fn apply_default_rules(
         successful,
         failed,
         results,
+    }))
+}
+
+/// Response for link rule status
+#[derive(Debug, Serialize)]
+pub struct LinkRuleStatusResponse {
+    pub rules: Vec<LinkRuleWithStatus>,
+}
+
+/// A link rule with its execution status
+#[derive(Debug, Serialize)]
+pub struct LinkRuleWithStatus {
+    pub index: usize,
+    pub rule: LinkRule,
+    pub status: Option<RuleStatusInfo>,
+}
+
+/// Serializable version of RuleStatus with formatted timestamps
+#[derive(Debug, Serialize)]
+pub struct RuleStatusInfo {
+    pub last_run: Option<String>,
+    pub last_run_timestamp: Option<u64>,
+    pub links_created: usize,
+    pub links_failed: usize,
+    pub last_error: Option<String>,
+    pub total_runs: usize,
+}
+
+/// Get status of all link rules being monitored
+pub async fn get_link_rules_status(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LinkRuleStatusResponse>, ApiError> {
+    debug!("Retrieving link rules status");
+    
+    let rules = state.get_link_rules();
+    let all_status = state.get_all_rule_status();
+    
+    let rules_with_status: Vec<LinkRuleWithStatus> = rules
+        .into_iter()
+        .enumerate()
+        .map(|(idx, rule)| {
+            let status = all_status.get(&idx).map(|s| {
+                let (last_run_str, last_run_ts) = if let Some(last_run) = s.last_run {
+                    let duration = last_run
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or(std::time::Duration::from_secs(0));
+                    let timestamp = duration.as_secs();
+                    
+                    // Format as ISO 8601
+                    let datetime = humantime::format_rfc3339(last_run).to_string();
+                    (Some(datetime), Some(timestamp))
+                } else {
+                    (None, None)
+                };
+                
+                RuleStatusInfo {
+                    last_run: last_run_str,
+                    last_run_timestamp: last_run_ts,
+                    links_created: s.links_created,
+                    links_failed: s.links_failed,
+                    last_error: s.last_error.clone(),
+                    total_runs: s.total_runs,
+                }
+            });
+            
+            LinkRuleWithStatus {
+                index: idx,
+                rule,
+                status,
+            }
+        })
+        .collect();
+    
+    Ok(Json(LinkRuleStatusResponse {
+        rules: rules_with_status,
     }))
 }

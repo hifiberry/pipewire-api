@@ -246,6 +246,55 @@ curl -X POST http://localhost:2716/api/v1/links/apply-defaults
 
 This will automatically link speakereq output nodes to ALSA HiFiBerry playback devices.
 
+### Example 7: Get link rules status
+
+```bash
+curl http://localhost:2716/api/v1/links/status
+```
+
+**Response:**
+```json
+{
+  "rules": [
+    {
+      "index": 0,
+      "rule": {
+        "name": "SpeakerEQ to HiFiBerry",
+        "source": {
+          "node.name": "^speakereq.x.\\.output$",
+          "node.nick": null,
+          "object.path": null
+        },
+        "destination": {
+          "node.name": null,
+          "node.nick": null,
+          "object.path": "alsa.*sndrpihifiberry.*playback"
+        },
+        "type": "link",
+        "link_at_startup": true,
+        "relink_every": 5
+      },
+      "status": {
+        "last_run": "2026-01-31T14:32:15.123456Z",
+        "last_run_timestamp": 1738330335,
+        "links_created": 2,
+        "links_failed": 0,
+        "last_error": null,
+        "total_runs": 42
+      }
+    }
+  ]
+}
+```
+
+This endpoint shows all configured link rules along with their execution status, including:
+- `last_run`: ISO 8601 timestamp of the last execution
+- `last_run_timestamp`: Unix timestamp of the last execution
+- `links_created`: Number of links successfully created on the last run
+- `links_failed`: Number of links that failed on the last run
+- `last_error`: Last error message, if any
+- `total_runs`: Total number of times this rule has been executed
+
 ## Default Link Rules
 
 The system comes with pre-configured default link rules that can be retrieved via `/api/v1/links/default` or applied via `/api/v1/links/apply-defaults`.
@@ -257,13 +306,15 @@ The system comes with pre-configured default link rules that can be retrieved vi
 
 This rule automatically routes the output of SpeakerEQ nodes to HiFiBerry ALSA playback devices.
 
-## Current Limitations
+## Automatic Link Management
 
-**Note:** The actual link creation/destruction functionality is not yet fully implemented. The current implementation:
+The API server includes an automatic link scheduler that monitors and applies link rules based on the configuration file (`/etc/pipewire-api/link-rules.conf` or `~/.config/pipewire-api/link-rules.conf`). 
 
-1. ✅ Can list all existing PipeWire links
-2. ✅ Can find and match nodes using wildcards
-3. ✅ Can validate link rules
+Rules can be configured to:
+- Run at startup (`link_at_startup: true`)
+- Re-link periodically (`relink_every: N` seconds, where 0 means link only once)
+
+The link scheduler tracks the status of each rule and can be queried via the `/api/v1/links/status` endpoint to monitor when rules last ran and their success/failure status.
 4. ❌ Cannot actually create new links (returns error indicating this needs implementation)
 5. ⚠️ Unlink operation is not yet fully implemented
 

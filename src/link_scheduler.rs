@@ -49,6 +49,7 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                     match apply_rule_safe(rule).await {
                         Ok(results) => {
                             let success_count = results.iter().filter(|r| r.success).count();
+                            let failed_count = results.iter().filter(|r| !r.success).count();
                             let total = results.len();
 
                             if success_count > 0 {
@@ -58,6 +59,19 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                                 );
                             }
 
+                            let error_msg = if failed_count > 0 {
+                                let errors: Vec<String> = results.iter()
+                                    .filter(|r| !r.success)
+                                    .map(|r| r.message.clone())
+                                    .collect();
+                                Some(errors.join("; "))
+                            } else {
+                                None
+                            };
+
+                            // Update rule status
+                            state.update_rule_status(idx, success_count, failed_count, error_msg.clone());
+
                             for result in results {
                                 if !result.success {
                                     warn!("Link failed: {}", result.message);
@@ -66,6 +80,8 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                         }
                         Err(e) => {
                             error!("Failed to apply link rule {}: {}", idx, e);
+                            // Update status with error
+                            state.update_rule_status(idx, 0, 0, Some(e.to_string()));
                         }
                     }
 
@@ -106,6 +122,7 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
         match apply_rule_safe(rule).await {
             Ok(results) => {
                 let success_count = results.iter().filter(|r| r.success).count();
+                let failed_count = results.iter().filter(|r| !r.success).count();
                 let total = results.len();
 
                 if total > 0 {
@@ -114,6 +131,19 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
                         idx, success_count, total
                     );
                 }
+
+                let error_msg = if failed_count > 0 {
+                    let errors: Vec<String> = results.iter()
+                        .filter(|r| !r.success)
+                        .map(|r| r.message.clone())
+                        .collect();
+                    Some(errors.join("; "))
+                } else {
+                    None
+                };
+
+                // Update rule status
+                state.update_rule_status(idx, success_count, failed_count, error_msg);
 
                 for result in results {
                     if result.success {
@@ -125,6 +155,8 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
             }
             Err(e) => {
                 error!("Failed to apply startup rule {}: {}", idx, e);
+                // Update status with error
+                state.update_rule_status(idx, 0, 0, Some(e.to_string()));
             }
         }
     }
