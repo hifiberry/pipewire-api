@@ -152,6 +152,27 @@ fn pod_value_to_json(value: &PodValue) -> Option<JsonValue> {
                 None
             }
         }
+        PodValue::Object(obj) => {
+            // Handle nested objects by parsing them recursively
+            let mut nested = serde_json::Map::new();
+            for prop in &obj.properties {
+                if let Some(json_value) = pod_value_to_json(&prop.value) {
+                    nested.insert(format!("prop_{}", prop.key), json_value.clone());
+                    
+                    // Also add friendly names for known properties
+                    match prop.key {
+                        65539 => { nested.insert("volume".to_string(), json_value); }
+                        65540 => { nested.insert("mute".to_string(), json_value); }
+                        65544 => { nested.insert("channelVolumes".to_string(), json_value); }
+                        65545 => { nested.insert("volumeBase".to_string(), json_value); }
+                        65546 => { nested.insert("volumeStep".to_string(), json_value); }
+                        65547 => { nested.insert("channelMap".to_string(), json_value); }
+                        _ => {}
+                    }
+                }
+            }
+            Some(JsonValue::Object(nested))
+        }
         _ => None,
     }
 }

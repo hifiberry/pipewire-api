@@ -1,3 +1,21 @@
+pipewire-api (1.0.7-1) stable; urgency=medium
+
+  * Added pw-route command-line tool for device route volume control
+  * New API endpoints: GET /api/v1/devices/:id with volume information
+  * New API endpoints: GET/PUT /api/v1/devices/:id/volume for volume control
+  * Added pw-props tool for reading and setting node Props parameters
+  * Enhanced pod_parser to handle nested Object types in SPA parameters
+  * Dynamic properties now included in /api/v1/properties/:id responses
+  * Property ID mapping for friendly names (volume, mute, channelVolumes, etc.)
+  * Device route volume control via SPA Route parameters
+  * Split log_level configuration into info_level and error_level
+  * Added device-volumes.conf for setting default device volumes on startup
+  * Default volumes applied once at server startup from config file
+  * Device matching via regex patterns (similar to link rules)
+  * Added device-volumes.conf(5) man page
+
+ -- HiFiBerry <info@hifiberry.com>  Fri, 31 Jan 2026 16:30:00 +0100
+
 pipewire-api (1.0.6-1) stable; urgency=medium
 
   * Added default link-rules.conf configuration file installed to /etc/pipewire-api/
