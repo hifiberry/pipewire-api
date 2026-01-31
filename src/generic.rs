@@ -390,6 +390,123 @@ pub async fn get_object_properties(
     }
 }
 
+// List all devices with volume information
+pub async fn list_devices_with_info(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<Vec<DeviceInfo>>, ApiError> {
+    use crate::PipeWireClient;
+    use pipewire as pw;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use libspa::param::ParamType;
+    
+    let client = PipeWireClient::new()
+        .map_err(|e| ApiError::Internal(format!("Failed to connect to PipeWire: {}", e)))?;
+    
+    // Collect all devices with bound Device objects during the initial scan
+    let devices: Rc<RefCell<Vec<(u32, HashMap<String, String>, pw::device::Device)>>> = 
+        Rc::new(RefCell::new(Vec::new()));
+    let devices_clone = devices.clone();
+    
+    let registry_for_bind = client.registry().downgrade();
+    let _listener = client.registry()
+        .add_listener_local()
+        .global(move |global| {
+            if global.type_ == pw::types::ObjectType::Device {
+                if let Some(props) = &global.props {
+                    if let Some(reg) = registry_for_bind.upgrade() {
+                        if let Ok(dev) = reg.bind::<pw::device::Device, _>(&global) {
+                            let mut properties = HashMap::new();
+                            for (key, value) in props.iter() {
+                                properties.insert(key.to_string(), value.to_string());
+                            }
+                            devices_clone.borrow_mut().push((global.id, properties, dev));
+                        }
+                    }
+                }
+            }
+        })
+        .global_remove(move |_| {})
+        .register();
+    
+    // Set up timeout
+    let timeout_mainloop = client.mainloop().clone();
+    let _timer = client.mainloop().loop_().add_timer(move |_| {
+        timeout_mainloop.quit();
+    });
+    _timer.update_timer(Some(std::time::Duration::from_millis(500)), None);
+    
+    client.mainloop().run();
+    
+    // Now read Route parameters for each device to get volumes
+    let mut result_devices = Vec::new();
+    
+    for (device_id, properties, device) in devices.borrow().iter() {
+        let name = properties.get("device.name")
+            .or_else(|| properties.get("device.description"))
+            .map(|s| s.as_str())
+            .unwrap_or("unknown");
+        
+        let volume_ref: Rc<RefCell<Option<f32>>> = Rc::new(RefCell::new(None));
+        let volume_ref_clone = volume_ref.clone();
+        
+        let mainloop_for_param = client.mainloop().clone();
+        let _param_listener = device
+            .add_listener_local()
+            .param(move |_, param_type, _, _, param_pod| {
+                if param_type != ParamType::Route {
+                    return;
+                }
+                
+                if let Some(pod) = param_pod {
+                    let parsed = crate::pod_parser::parse_props_pod(pod);
+                    
+                    // Look for channelVolumes in the parsed data (might be nested in prop_10)
+                    if let Some(JsonValue::Array(volumes)) = parsed.get("channelVolumes") {
+                        if let Some(JsonValue::Number(vol)) = volumes.first() {
+                            if let Some(v) = vol.as_f64() {
+                                *volume_ref_clone.borrow_mut() = Some(v as f32);
+                            }
+                        }
+                    } else if let Some(JsonValue::Object(props_obj)) = parsed.get("prop_10") {
+                        // prop_10 is the props object inside the route
+                        if let Some(JsonValue::Array(volumes)) = props_obj.get("channelVolumes") {
+                            if let Some(JsonValue::Number(vol)) = volumes.first() {
+                                if let Some(v) = vol.as_f64() {
+                                    *volume_ref_clone.borrow_mut() = Some(v as f32);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                mainloop_for_param.quit();
+            })
+            .register();
+        
+        // Query params with a timeout
+        let timeout_mainloop2 = client.mainloop().clone();
+        let _timer2 = client.mainloop().loop_().add_timer(move |_| {
+            timeout_mainloop2.quit();
+        });
+        _timer2.update_timer(Some(std::time::Duration::from_millis(200)), None);
+        
+        device.enum_params(0, Some(ParamType::Route), 0, u32::MAX);
+        client.mainloop().run();
+        
+        let device_info = DeviceInfo {
+            id: *device_id,
+            name: name.to_string(),
+            properties: properties.clone(),
+            volume: *volume_ref.borrow(),
+        };
+        
+        result_devices.push(device_info);
+    }
+    
+    Ok(Json(result_devices))
+}
+
 // Get device info including volume from Route parameters
 pub async fn get_device_info(
     State(_state): State<Arc<AppState>>,
@@ -801,6 +918,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/ls/links", get(list_links))
         .route("/api/v1/properties", get(list_all_properties))
         .route("/api/v1/properties/:id", get(get_object_properties))
+        .route("/api/v1/devices", get(list_devices_with_info))
         .route("/api/v1/devices/:id", get(get_device_info))
         .route("/api/v1/devices/:id/volume", get(get_device_volume))
         .route("/api/v1/devices/:id/volume", put(set_device_volume))
