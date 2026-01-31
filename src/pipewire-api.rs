@@ -38,9 +38,19 @@ async fn main() -> Result<()> {
 
     // Load default link rules unless disabled
     if !args.no_auto_link {
+        let mut all_rules = Vec::new();
+        
+        // Load default rules
         let default_rules = pw_api::default_link_rules::get_default_rules();
         tracing::info!("Loaded {} default link rule(s)", default_rules.len());
-        state.set_link_rules(default_rules);
+        all_rules.extend(default_rules);
+        
+        // Load rules from config files
+        let config_rules = pw_api::config::load_all_link_rules();
+        all_rules.extend(config_rules);
+        
+        tracing::info!("Total {} link rule(s) configured", all_rules.len());
+        state.set_link_rules(all_rules);
 
         // Apply startup rules
         pw_api::link_scheduler::apply_startup_rules(state.clone()).await;
