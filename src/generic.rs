@@ -218,12 +218,18 @@ pub async fn get_object_properties(
     use pipewire as pw;
     use std::cell::RefCell;
     use std::rc::Rc;
+    use libspa::param::ParamType;
     
     let client = PipeWireClient::new()
         .map_err(|e| ApiError::Internal(format!("Failed to connect to PipeWire: {}", e)))?;
     
     let found_object: Rc<RefCell<Option<PipeWireObjectWithProperties>>> = Rc::new(RefCell::new(None));
     let found_object_clone = found_object.clone();
+    let found_object_for_params = found_object.clone();
+    
+    // Store node type to determine if we should read parameters
+    let is_node: Rc<RefCell<bool>> = Rc::new(RefCell::new(false));
+    let is_node_clone = is_node.clone();
     
     // Set up timeout
     let timeout_mainloop = client.mainloop().clone();
@@ -232,14 +238,17 @@ pub async fn get_object_properties(
     });
     _timer.update_timer(Some(std::time::Duration::from_secs(2)), None);
     
-    let _listener = client.registry()
+    let _registry_listener = client.registry()
         .add_listener_local()
         .global({
             move |global| {
                 if global.id == id {
                     if let Some(props) = &global.props {
                         let obj_type = match global.type_ {
-                            pw::types::ObjectType::Node => TYPE_NODE,
+                            pw::types::ObjectType::Node => {
+                                *is_node_clone.borrow_mut() = true;
+                                TYPE_NODE
+                            }
                             pw::types::ObjectType::Device => TYPE_DEVICE,
                             pw::types::ObjectType::Port => TYPE_PORT,
                             pw::types::ObjectType::Link => TYPE_LINK,

@@ -19,6 +19,10 @@ name = "pw-param"
 path = "src/pw-param.rs"
 
 [[bin]]
+name = "pw-props"
+path = "src/pw-props.rs"
+
+[[bin]]
 name = "link-nodes"
 path = "src/link-nodes.rs"
 

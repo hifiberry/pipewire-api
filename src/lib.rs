@@ -9,6 +9,7 @@ pub mod default_link_rules;
 pub mod link_manager;
 pub mod link_scheduler;
 pub mod config;
+pub mod pod_parser;
 
 pub use pipewire_client::{PipeWireClient, NodeInfo};
 pub use parameters::{get_all_params, set_param, set_param_from_string, ParameterValue};
