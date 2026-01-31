@@ -1,0 +1,45 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        # Stop the service if running
+        if command -v deb-systemd-helper >/dev/null 2>&1; then
+            deb-systemd-helper --user disable pipewire-api.service >/dev/null || true
+        fi
+        
+        if [ "$1" = "purge" ]; then
+            echo "Removed PipeWire API"
+            echo "You may want to restart PipeWire: systemctl --user restart pipewire wireplumber"
+        fi
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+# Automatically added by dh_installsystemduser
+if [ -d /run/systemd/system ]; then
+        systemctl --user daemon-reload >/dev/null || true
+fi
+
+if [ "$1" = "remove" ]; then
+        if [ -x "/usr/bin/deb-systemd-helper" ]; then
+                deb-systemd-helper --user mask 'pipewire-api.service' >/dev/null || true
+        fi
+fi
+
+if [ "$1" = "purge" ]; then
+        if [ -x "/usr/bin/deb-systemd-helper" ]; then
+                deb-systemd-helper --user purge 'pipewire-api.service' >/dev/null || true
+                deb-systemd-helper --user unmask 'pipewire-api.service' >/dev/null || true
+        fi
+fi
+# End automatically added section
+
+exit 0

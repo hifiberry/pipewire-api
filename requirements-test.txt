@@ -1,0 +1,3 @@
+# Python test dependencies for SpeakerEQ API
+pytest>=7.4.0
+requests>=2.31.0

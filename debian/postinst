@@ -1,0 +1,68 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Enable and start the API service for existing users
+        if command -v deb-systemd-helper >/dev/null 2>&1; then
+            deb-systemd-helper --user enable pipewire-api.service >/dev/null || true
+        fi
+        
+        echo "PipeWire API installed successfully!"
+        echo ""
+        echo "To enable the API server, run:"
+        echo "  systemctl --user enable --now pipewire-api"
+        echo ""
+        echo "To restart PipeWire:"
+        echo "  systemctl --user restart pipewire wireplumber"
+        echo ""
+        echo "Tools available:"
+        echo "  - pipewire-api: REST API server for PipeWire control"
+        echo "  - pw-param: Get/set PipeWire parameters"
+        echo ""
+        echo "API available at: http://localhost:2716/api/v1/"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+# Automatically added by dh_installsystemduser
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+        # This will only remove masks created by d-s-h on package removal.
+        deb-systemd-helper --user unmask 'pipewire-api.service' >/dev/null || true
+
+        # was-enabled defaults to true, so new installations run enable.
+        if deb-systemd-helper --quiet --user was-enabled 'pipewire-api.service' ; then
+                # Enables the unit on first installation, creates new
+                # symlinks on upgrades if the unit file has changed.
+                deb-systemd-helper --user enable 'pipewire-api.service' >/dev/null || true
+        else
+                # Update the statefile to add new symlinks (if any), which need to be
+                # cleaned up on purge. Also remove old symlinks.
+                deb-systemd-helper --user update-state 'pipewire-api.service' >/dev/null || true
+        fi
+fi
+# End automatically added section
+
+
+exit 0
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) all
+
+override_dh_auto_install:
+	$(MAKE) DESTDIR=$(CURDIR)/debian/pipewire-api PREFIX=/usr install-all
+	# Create systemd user service directory
+	mkdir -p $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user
+	# Create systemd unit
+	echo "[Unit]" > $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "Description=PipeWire REST API Server" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "After=pipewire.service" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "Requires=pipewire.service" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "[Service]" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "Type=simple" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "ExecStartPre=/bin/sleep 2" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "ExecStart=/usr/bin/pipewire-api" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "Restart=on-failure" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "RestartSec=5" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "[Install]" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "WantedBy=default.target" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+
+override_dh_auto_clean:
+	$(MAKE) clean || true
+
+override_dh_compress:
+	dh_compress -X.md

@@ -1,0 +1,30 @@
+Source: pipewire-api
+Section: sound
+Priority: optional
+Maintainer: HiFiBerry <info@hifiberry.com>
+Build-Depends: debhelper-compat (= 13),
+               make,
+               cargo,
+               rustc,
+               pkg-config,
+               libpipewire-0.3-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/hifiberry/pipewire-api
+Vcs-Git: https://github.com/hifiberry/pipewire-api.git
+Vcs-Browser: https://github.com/hifiberry/pipewire-api
+
+Package: pipewire-api
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         pipewire,
+         pipewire-pulse | pipewire-audio-client-libraries,
+         wireplumber
+Description: REST API and tools for PipeWire audio control
+ A REST API server and command-line tools for controlling PipeWire audio parameters.
+ .
+ Features:
+  - REST API for remote PipeWire control
+  - Command-line parameter management tool (pw-param)
+  - Systemd integration for automatic service startup
+  - Real-time audio parameter manipulation

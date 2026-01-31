@@ -1,0 +1,8 @@
+pipewire-api (1.0.0-1) stable; urgency=medium
+
+  * Initial release of pipewire-api
+  * REST API server for PipeWire control
+  * Command-line parameter manipulation tool (pw-param)
+  * Systemd integration for service management
+
+ -- HiFiBerry <info@hifiberry.com>  Fri, 31 Jan 2026 08:30:00 +0100
