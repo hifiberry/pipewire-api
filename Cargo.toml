@@ -4,18 +4,19 @@ version = "0.1.0"
 edition = "2021"
 authors = ["HiFiBerry <info@hifiberry.com>"]
 license = "MIT"
+default-run = "pipewire-api"
 
 [lib]
 name = "pw_api"
 path = "src/lib.rs"
 
 [[bin]]
-name = "pw-param"
-path = "src/pw-param.rs"
-
-[[bin]]
 name = "pipewire-api"
 path = "src/pipewire-api.rs"
+
+[[bin]]
+name = "pw-param"
+path = "src/pw-param.rs"
 
 [dependencies]
 pipewire = { version = "0.9", features = ["v0_3_44"] }

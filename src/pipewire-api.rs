@@ -1,5 +1,5 @@
 use anyhow::Result;
-use pw_api::{PipeWireClient, AppState, create_router};
+use pw_api::{PipeWireClient, AppState};
 use std::sync::Arc;
 use clap::Parser;
 
@@ -32,8 +32,9 @@ async fn main() -> Result<()> {
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
 
-    // Create router
-    let app = create_router(state);
+    // Create router with both generic and speakereq endpoints
+    let app = pw_api::generic::create_router(state.clone())
+        .merge(pw_api::speakereq::create_router(state));
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
