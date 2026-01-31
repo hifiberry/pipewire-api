@@ -1,0 +1,218 @@
+.TH PIPEWIRE-API 1 "January 2026" "PipeWire API 1.0.1" "User Commands"
+.SH NAME
+pipewire-api \- REST API server for PipeWire API 2x2 PipeWire audio filter plugin
+.SH SYNOPSIS
+.B pipewire-api
+[\fB\-\-port\fR \fIPORT\fR]
+[\fB\-\-localhost\fR]
+.SH DESCRIPTION
+\fBpipewire-api\fR is a REST API server that provides HTTP control interface for the PipeWire API 2x2 PipeWire audio filter plugin. It allows remote control of all plugin parameters including equalizers, crossbar mixer, gains, and delays.
+.PP
+The server listens on \fBhttp://0.0.0.0:2716\fR by default (all network interfaces) and provides a complete REST API for managing audio processing parameters in real-time.
+.SH OPTIONS
+.TP
+.B \-p, \-\-port PORT
+Port to listen on (default: 2716)
+.TP
+.B \-\-localhost
+Bind to localhost (127.0.0.1) only instead of all interfaces (0.0.0.0)
+.SH BASE URL
+.B http://localhost:2716/api/v1
+.PP
+All API endpoints use this base URL prefix.
+.SH MAIN ENDPOINTS
+.SS Structure Information
+.TP
+.B GET /structure
+Returns the complete plugin structure including available blocks and their configuration.
+.TP
+.B GET /io
+Returns the number of inputs and outputs (always 2 for stereo).
+.TP
+.B GET /status
+Returns complete plugin status including enable state, master gain, crossbar matrix, and all EQ band configurations in a single call. Useful for initializing UI state or creating backups.
+.SS EQ Management
+.TP
+.B GET /eq/{block}
+Get all EQ bands for a specific block (input_0, input_1, output_0, output_1).
+.TP
+.B GET /eq/{block}/{band}
+Get a specific EQ band configuration.
+.TP
+.B PUT /eq/{block}/{band}
+Set a specific EQ band configuration. Accepts JSON with fields: type, frequency, q, gain, enabled.
+.TP
+.B PUT /eq/{block}/{band}/enabled
+Set the enabled state of a specific EQ band (true/false).
+.SS Crossbar Mixer
+.TP
+.B GET /crossbar
+Get the complete crossbar routing matrix.
+.TP
+.B PUT /crossbar
+Set the crossbar routing matrix. Accepts JSON with routing coefficients.
+.TP
+.B GET /crossbar/{in}/{out}
+Get a specific crossbar routing coefficient.
+.TP
+.B PUT /crossbar/{in}/{out}
+Set a specific crossbar routing coefficient (0.0-1.0).
+.SS Gain Controls
+.TP
+.B GET /input_gain/{channel}
+Get input gain for specified channel (0=left, 1=right).
+.TP
+.B PUT /input_gain/{channel}
+Set input gain in dB (-100 to +24).
+.TP
+.B GET /output_gain/{channel}
+Get output gain for specified channel.
+.TP
+.B PUT /output_gain/{channel}
+Set output gain in dB (-100 to +24).
+.TP
+.B GET /master_gain
+Get master gain applied to all channels.
+.TP
+.B PUT /master_gain
+Set master gain in dB (-100 to +24).
+.SS Delay
+.TP
+.B GET /delay/{channel}
+Get delay for specified channel.
+.TP
+.B PUT /delay/{channel}
+Set delay in milliseconds (0-100).
+.SS Plugin Control
+.TP
+.B GET /enable
+Get plugin enable state.
+.TP
+.B PUT /enable
+Enable or disable the plugin (true/false).
+.SH EQ BAND OBJECT
+EQ bands are configured using JSON objects with the following fields:
+.TP
+.B type
+Filter type: "off", "peaking", "lowpass", "highpass", "low_shelf", "high_shelf", "notch"
+.TP
+.B frequency
+Center/corner frequency in Hz (20-20000)
+.TP
+.B q
+Q factor/bandwidth (0.1-10.0)
+.TP
+.B gain
+Gain in dB (-24 to +24)
+.TP
+.B enabled
+Band enable state (true/false)
+.SH EXAMPLES
+.SS Get complete plugin status
+.nf
+curl http://localhost:2716/api/v1/status
+.fi
+.SS Set EQ band on output channel 0, band 1
+.nf
+curl -X PUT http://localhost:2716/api/v1/eq/output_0/1 \\
+  -H "Content-Type: application/json" \\
+  -d '{"type":"peaking","frequency":1000,"q":1.41,"gain":3.0,"enabled":true}'
+.fi
+.SS Enable a specific EQ band
+.nf
+curl -X PUT http://localhost:2716/api/v1/eq/output_0/1/enabled \\
+  -H "Content-Type: application/json" \\
+  -d 'true'
+.fi
+.SS Set crossbar routing (swap left/right channels)
+.nf
+curl -X PUT http://localhost:2716/api/v1/crossbar \\
+  -H "Content-Type: application/json" \\
+  -d '{"input_0_to_output_0":0.0,"input_0_to_output_1":1.0,
+       "input_1_to_output_0":1.0,"input_1_to_output_1":0.0}'
+.fi
+.SS Set master gain to -6dB
+.nf
+curl -X PUT http://localhost:2716/api/v1/master_gain \\
+  -H "Content-Type: application/json" \\
+  -d '-6.0'
+.fi
+.SS Set output delay for left channel
+.nf
+curl -X PUT http://localhost:2716/api/v1/delay/0 \\
+  -H "Content-Type: application/json" \\
+  -d '5.0'
+.fi
+.SS Disable the plugin
+.nf
+curl -X PUT http://localhost:2716/api/v1/enable \\
+  -H "Content-Type: application/json" \\
+  -d 'false'
+.fi
+.SH HTTP STATUS CODES
+.TP
+.B 200 OK
+Successful GET or PUT request
+.TP
+.B 400 Bad Request
+Invalid parameter or JSON format
+.TP
+.B 404 Not Found
+Block, band, or endpoint not found
+.TP
+.B 500 Internal Server Error
+Server error or PipeWire communication failure
+.SH CHANNEL NUMBERING
+Channels and indices are zero-based:
+.IP \(bu 2
+Channel 0 = Left
+.IP \(bu 2
+Channel 1 = Right
+.PP
+EQ bands are numbered 1-20 for each block (input_0, input_1, output_0, output_1).
+.SH SYSTEMD SERVICE
+The API server is typically run as a systemd user service:
+.PP
+.nf
+systemctl --user start pipewire-api
+systemctl --user enable pipewire-api
+systemctl --user status pipewire-api
+.fi
+.PP
+The service automatically starts after PipeWire and includes a 2-second delay to ensure PipeWire is fully initialized.
+.SH FILES
+.TP
+.B /usr/bin/pipewire-api
+API server binary
+.TP
+.B ~/.config/systemd/user/pipewire-api.service
+User systemd service unit
+.TP
+.B /usr/share/doc/speakereq/api.md
+Complete API specification in Markdown format
+.SH NOTES
+.IP \(bu 2
+The API server requires PipeWire to be running
+.IP \(bu 2
+The speakereq2x2 plugin must be loaded in PipeWire
+.IP \(bu 2
+All parameter changes take effect immediately
+.IP \(bu 2
+Changes are not persistent unless saved with pw-param
+.IP \(bu 2
+The delay parameter only applies to output channels
+.SH SEE ALSO
+.BR speakereq2x2 (1),
+.BR pw-param (1),
+.BR pipewire (1),
+.BR systemctl (1)
+.PP
+Complete API documentation: /usr/share/doc/speakereq/api.md
+.SH BUGS
+Report bugs to: https://github.com/example/speakereq/issues
+.SH AUTHOR
+Speaker EQ Team
+.SH COPYRIGHT
+Copyright \(co 2026 Speaker EQ Team
+.br
+Licensed under GPLv3+: GNU GPL version 3 or later.

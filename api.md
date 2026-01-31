@@ -1,7 +1,8 @@
-# SpeakerEQ 2x2 REST API Specification
+# PipeWire REST API Specification
 
 ## Overview
-REST API for controlling the SpeakerEQ 2x2 PipeWire audio filter plugin.
+REST API for controlling PipeWire audio system, with specialized support for the SpeakerEQ 2x2 audio filter plugin.
+Includes endpoints for listing PipeWire objects, inspecting properties, managing links, and controlling SpeakerEQ parameters.
 
 ## Base URL
 `http://localhost:2716/api/v1`
@@ -10,11 +11,270 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 
 ## Endpoints
 
+### Generic PipeWire Endpoints
+
+#### List All Objects
+```
+GET /ls
+```
+Returns all PipeWire objects (nodes, devices, ports, links, clients, modules, factories).
+
+**Response:**
+```json
+{
+  "objects": [
+    {
+      "id": 45,
+      "name": "speakereq2x2",
+      "type": "node"
+    },
+    {
+      "id": 67,
+      "name": "HiFiBerry DAC",
+      "type": "device"
+    }
+  ]
+}
+```
+
+#### List Nodes
+```
+GET /ls/nodes
+```
+Returns all PipeWire nodes (audio/video processing elements).
+
+#### List Devices
+```
+GET /ls/devices
+```
+Returns all PipeWire devices (audio/video hardware).
+
+#### List Ports
+```
+GET /ls/ports
+```
+Returns all PipeWire ports (connection endpoints).
+
+#### List Links
+```
+GET /ls/links
+```
+Returns all PipeWire links (active connections).
+
+#### List Clients
+```
+GET /ls/clients
+```
+Returns all PipeWire clients (applications).
+
+#### List Modules
+```
+GET /ls/modules
+```
+Returns all PipeWire modules.
+
+#### List Factories
+```
+GET /ls/factories
+```
+Returns all PipeWire object factories.
+
+#### Get All Properties
+```
+GET /properties
+```
+Returns all objects with their complete property dictionaries.
+
+**Response:**
+```json
+{
+  "objects": [
+    {
+      "id": 45,
+      "name": "speakereq2x2",
+      "type": "node",
+      "properties": {
+        "node.name": "speakereq2x2",
+        "node.description": "SpeakerEQ 2x2",
+        "media.class": "Audio/Filter"
+      }
+    }
+  ]
+}
+```
+
+#### Get Object Properties by ID
+```
+GET /properties/:id
+```
+Returns properties for a specific object.
+
+**Parameters:**
+- `id` (path): Object ID
+
+**Response:**
+```json
+{
+  "id": 45,
+  "name": "speakereq2x2",
+  "type": "node",
+  "properties": {
+    "node.name": "speakereq2x2",
+    "node.description": "SpeakerEQ 2x2",
+    "media.class": "Audio/Filter"
+  }
+}
+```
+
+### Link Management Endpoints
+
+#### List Active Links
+```
+GET /links
+```
+Returns all active PipeWire links with detailed connection information.
+
+**Response:**
+```json
+[
+  {
+    "id": 101,
+    "output_node_id": 45,
+    "output_port_id": 67,
+    "input_node_id": 89,
+    "input_port_id": 90,
+    "output_node_name": "speakereq2x2",
+    "input_node_name": "HiFiBerry DAC"
+  }
+]
+```
+
+#### Apply Link Rule
+```
+POST /links/apply
+```
+Apply a single link rule to create connections between nodes.
+
+**Request Body:**
+```json
+{
+  "name": "My Link",
+  "source": {
+    "node.name": "^source_node$"
+  },
+  "destination": {
+    "node.name": "^dest_node$"
+  },
+  "type": "link",
+  "link_at_startup": true,
+  "relink_every": 0
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Created link from output_port to input_port"
+}
+```
+
+#### Apply Batch Rules
+```
+POST /links/batch
+```
+Apply multiple link rules at once.
+
+**Request Body:**
+```json
+{
+  "rules": [
+    {
+      "name": "Link 1",
+      "source": {...},
+      "destination": {...},
+      "type": "link"
+    },
+    {
+      "name": "Link 2",
+      "source": {...},
+      "destination": {...},
+      "type": "link"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Applied 2 rule(s)",
+  "details": {
+    "results": [
+      {"success": true, "message": "Rule applied"},
+      {"success": true, "message": "Rule applied"}
+    ]
+  }
+}
+```
+
+#### Get Default Link Rules
+```
+GET /links/default
+```
+Returns the default link rules configured in the server.
+
+**Response:**
+```json
+{
+  "rules": [
+    {
+      "name": "SpeakerEQ to HiFiBerry",
+      "source": {
+        "node.name": "^speakereq2x2\\.output$"
+      },
+      "destination": {
+        "object.path": "alsa:.*:sndrpihifiberry:.*:playback"
+      },
+      "type": "link",
+      "link_at_startup": true,
+      "relink_every": 10
+    }
+  ]
+}
+```
+
+#### Apply Default Link Rules
+```
+POST /links/apply-defaults
+```
+Apply all default link rules configured in the server.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Applied 1 default rule(s)",
+  "details": {
+    "applied": 1,
+    "results": [
+      {"success": true, "message": "Created 2 links"}
+    ]
+  }
+}
+```
+
+
+### SpeakerEQ Endpoints
+
+All SpeakerEQ endpoints are prefixed with `/speakereq`.
+
 ### Structure Information
 
 #### Get Plugin Structure
 ```
-GET /structure
+GET /speakereq/structure
 ```
 Returns the overall structure of the plugin including available blocks and their configuration.
 
@@ -74,7 +334,7 @@ Returns the overall structure of the plugin including available blocks and their
 
 #### Get Input/Output Count
 ```
-GET /io
+GET /speakereq/io
 ```
 Returns the number of inputs and outputs.
 
@@ -88,7 +348,7 @@ Returns the number of inputs and outputs.
 
 #### Get Complete Status
 ```
-GET /status
+GET /speakereq/status
 ```
 Get the complete status of the plugin including enable state, master gain, crossbar matrix, and all block configurations with EQ bands in a single call.
 
@@ -169,7 +429,7 @@ Get the complete status of the plugin including enable state, master gain, cross
 
 #### Get All EQs in a Block
 ```
-GET /eq/{block}
+GET /speakereq/eq/{block}
 ```
 Get all EQ bands for a specific block (e.g., `input_0`, `output_1`).
 
@@ -213,7 +473,7 @@ Get all EQ bands for a specific block (e.g., `input_0`, `output_1`).
 
 #### Get Single EQ Band
 ```
-GET /eq/{block}/{band}
+GET /speakereq/eq/{block}/{band}
 ```
 Get a specific EQ band configuration.
 
@@ -239,7 +499,7 @@ Get a specific EQ band configuration.
 
 #### Set Single EQ Band
 ```
-PUT /eq/{block}/{band}
+PUT /speakereq/eq/{block}/{band}
 ```
 Update a specific EQ band.
 
@@ -283,7 +543,7 @@ Update a specific EQ band.
 
 #### Enable/Disable Single EQ Band
 ```
-PUT /eq/{block}/{band}/enabled
+PUT /speakereq/eq/{block}/{band}/enabled
 ```
 Enable or disable a specific EQ band without modifying its other parameters.
 
@@ -312,7 +572,7 @@ Enable or disable a specific EQ band without modifying its other parameters.
 
 #### Set All EQ Bands in a Block
 ```
-PUT /eq/{block}
+PUT /speakereq/eq/{block}
 ```
 Update all EQ bands in a block at once.
 
@@ -353,7 +613,7 @@ Update all EQ bands in a block at once.
 
 #### Clear All EQ Bands in a Block
 ```
-PUT /eq/{block}/clear
+PUT /speakereq/eq/{block}/clear
 ```
 Clear all EQ bands in a block by setting them to "off" (type 0).
 
@@ -400,7 +660,7 @@ Get all gain values (input, output, master).
 
 #### Get Master Gain
 ```
-GET /gain/master
+GET /speakereq/gain/master
 ```
 **Response:**
 ```json
@@ -411,7 +671,7 @@ GET /gain/master
 
 #### Set Master Gain
 ```
-PUT /gain/master
+PUT /speakereq/gain/master
 ```
 **Request Body:**
 ```json
@@ -430,7 +690,7 @@ PUT /gain/master
 
 #### Get Input Gain
 ```
-GET /gain/input/{channel}
+GET /speakereq/gain/input/{channel}
 ```
 **Parameters:**
 - `channel` (path): Channel number (0-1)
@@ -445,7 +705,7 @@ GET /gain/input/{channel}
 
 #### Set Input Gain
 ```
-PUT /gain/input/{channel}
+PUT /speakereq/gain/input/{channel}
 ```
 **Request Body:**
 ```json
@@ -465,7 +725,7 @@ PUT /gain/input/{channel}
 
 #### Get Output Gain
 ```
-GET /gain/output/{channel}
+GET /speakereq/gain/output/{channel}
 ```
 **Parameters:**
 - `channel` (path): Channel number (0-1)
@@ -480,7 +740,7 @@ GET /gain/output/{channel}
 
 #### Set Output Gain
 ```
-PUT /gain/output/{channel}
+PUT /speakereq/gain/output/{channel}
 ```
 **Request Body:**
 ```json
@@ -504,7 +764,7 @@ PUT /gain/output/{channel}
 
 #### Get All Delays
 ```
-GET /delay
+GET /speakereq/delay
 ```
 **Response:**
 ```json
@@ -518,7 +778,7 @@ GET /delay
 
 #### Set Delay
 ```
-PUT /delay/{channel}
+PUT /speakereq/delay/{channel}
 ```
 **Request Body:**
 ```json
@@ -542,7 +802,7 @@ PUT /delay/{channel}
 
 #### Get Crossbar Matrix
 ```
-GET /crossbar
+GET /speakereq/crossbar
 ```
 Get the routing matrix values.
 
@@ -558,7 +818,7 @@ Get the routing matrix values.
 
 #### Set Crossbar Value
 ```
-PUT /crossbar/{input}/{output}
+PUT /speakereq/crossbar/{input}/{output}
 ```
 Set a single crossbar routing value.
 
@@ -589,7 +849,7 @@ Set a single crossbar routing value.
 
 #### Get Enable Status
 ```
-GET /enable
+GET /speakereq/enable
 ```
 **Response:**
 ```json
@@ -601,7 +861,7 @@ GET /enable
 
 #### Set Enable Status
 ```
-PUT /enable
+PUT /speakereq/enable
 ```
 **Request Body:**
 ```json
@@ -620,7 +880,7 @@ PUT /enable
 
 #### Get License Status
 ```
-GET /license
+GET /speakereq/license
 ```
 **Response:**
 ```json
@@ -635,7 +895,7 @@ GET /license
 
 #### Save Current Settings
 ```
-POST /settings/save
+POST /speakereq/settings/save
 ```
 Trigger saving current settings to file.
 
@@ -649,7 +909,7 @@ Trigger saving current settings to file.
 
 #### Get All Parameters
 ```
-GET /parameters
+GET /speakereq/parameters
 ```
 Get all raw parameters (for advanced users/debugging).
 

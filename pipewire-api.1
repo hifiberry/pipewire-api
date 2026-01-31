@@ -1,218 +1,293 @@
-.TH PIPEWIRE-API 1 "January 2026" "PipeWire API 1.0.1" "User Commands"
+.TH PIPEWIRE-API 1 "January 2026" "pipewire-api" "User Commands"
 .SH NAME
-pipewire-api \- REST API server for PipeWire API 2x2 PipeWire audio filter plugin
+pipewire-api \- REST API server for PipeWire audio system control
 .SH SYNOPSIS
 .B pipewire-api
-[\fB\-\-port\fR \fIPORT\fR]
-[\fB\-\-localhost\fR]
+[\fIOPTIONS\fP]
 .SH DESCRIPTION
-\fBpipewire-api\fR is a REST API server that provides HTTP control interface for the PipeWire API 2x2 PipeWire audio filter plugin. It allows remote control of all plugin parameters including equalizers, crossbar mixer, gains, and delays.
+.B pipewire-api
+is a REST API server that provides HTTP access to the PipeWire audio system.
+It enables remote control of audio nodes, inspection of PipeWire objects and their
+properties, automatic link management between audio nodes, and specialized control
+of the SpeakerEQ 2x2 audio filter plugin.
 .PP
-The server listens on \fBhttp://0.0.0.0:2716\fR by default (all network interfaces) and provides a complete REST API for managing audio processing parameters in real-time.
+The server provides three main categories of endpoints:
+.IP \(bu 2
+\fBGeneric PipeWire endpoints\fP: List and inspect all PipeWire objects (nodes,
+devices, ports, links, clients, modules, factories) and their properties.
+.IP \(bu 2
+\fBLink management endpoints\fP: Create and manage audio links between nodes
+with automatic monitoring and relinking capabilities.
+.IP \(bu 2
+\fBSpeakerEQ endpoints\fP: Control the SpeakerEQ 2x2 plugin's equalizer bands,
+gains, crossbar matrix, and delay settings.
+.PP
+The server features automatic link management with rule-based monitoring that can
+detect node changes and recreate connections as needed. Link rules can be configured
+via configuration files or through the REST API.
 .SH OPTIONS
 .TP
-.B \-p, \-\-port PORT
-Port to listen on (default: 2716)
+.BR \-p ", " \-\-port " \fIPORT\fP"
+Specify the TCP port to listen on. Default: \fB2716\fP
 .TP
-.B \-\-localhost
-Bind to localhost (127.0.0.1) only instead of all interfaces (0.0.0.0)
-.SH BASE URL
-.B http://localhost:2716/api/v1
+.BR \-\-localhost
+Bind only to localhost (127.0.0.1) instead of all interfaces (0.0.0.0).
+Use this option when the API should only be accessible locally for security.
+.TP
+.BR \-\-no\-auto\-link
+Disable automatic link management. When this flag is set, the server will not
+load link rules, apply startup links, or run the link scheduler. Only the REST
+API endpoints will be available.
+.TP
+.BR \-h ", " \-\-help
+Print help information and exit.
+.SH AUTOMATIC LINK MANAGEMENT
+The server includes a sophisticated link management system that can automatically
+create and maintain connections between PipeWire audio nodes.
+.SS Link Rules
+Link rules are defined in JSON format and specify:
+.IP \(bu 2
+Source and destination nodes (identified by regex patterns)
+.IP \(bu 2
+Whether to apply at startup
+.IP \(bu 2
+How often to check and recreate the link (in seconds)
 .PP
-All API endpoints use this base URL prefix.
-.SH MAIN ENDPOINTS
-.SS Structure Information
+Rules are loaded from:
+.IP 1. 3
+Built-in default rules (e.g., SpeakerEQ to HiFiBerry)
+.IP 2. 3
+System configuration: \fB/etc/pipewire-api/link-rules.conf\fP
+.IP 3. 3
+User configuration: \fB~/.config/pipewire-api/link-rules.conf\fP
+.SS Link Scheduler
+When automatic link management is enabled (default), a background scheduler:
+.IP 1. 3
+Applies all rules marked with \fBlink_at_startup: true\fP on server startup
+.IP 2. 3
+Checks every second for rules with \fBrelink_every > 0\fP
+.IP 3. 3
+Recreates links that don't exist based on the relink interval
+.IP 4. 3
+Avoids creating duplicate links
+.PP
+This ensures audio connections remain stable even when nodes are added,
+removed, or restarted.
+.SH API ENDPOINTS
+The REST API is available at \fBhttp://localhost:2716/api/v1\fP by default.
+All responses are in JSON format.
+.SS Generic PipeWire Endpoints
 .TP
-.B GET /structure
-Returns the complete plugin structure including available blocks and their configuration.
+.B GET /ls
+List all PipeWire objects
 .TP
-.B GET /io
-Returns the number of inputs and outputs (always 2 for stereo).
+.B GET /ls/nodes
+List all audio/video processing nodes
 .TP
-.B GET /status
-Returns complete plugin status including enable state, master gain, crossbar matrix, and all EQ band configurations in a single call. Useful for initializing UI state or creating backups.
-.SS EQ Management
+.B GET /ls/devices
+List all audio/video hardware devices
 .TP
-.B GET /eq/{block}
-Get all EQ bands for a specific block (input_0, input_1, output_0, output_1).
+.B GET /ls/ports
+List all connection endpoints (ports)
 .TP
-.B GET /eq/{block}/{band}
-Get a specific EQ band configuration.
+.B GET /ls/links
+List all active connections (links)
 .TP
-.B PUT /eq/{block}/{band}
-Set a specific EQ band configuration. Accepts JSON with fields: type, frequency, q, gain, enabled.
+.B GET /ls/clients
+List all connected applications
 .TP
-.B PUT /eq/{block}/{band}/enabled
-Set the enabled state of a specific EQ band (true/false).
-.SS Crossbar Mixer
+.B GET /ls/modules
+List all PipeWire modules
 .TP
-.B GET /crossbar
-Get the complete crossbar routing matrix.
+.B GET /ls/factories
+List all object factories
 .TP
-.B PUT /crossbar
-Set the crossbar routing matrix. Accepts JSON with routing coefficients.
+.B GET /properties
+Get all objects with their complete property dictionaries
 .TP
-.B GET /crossbar/{in}/{out}
-Get a specific crossbar routing coefficient.
+.B GET /properties/:id
+Get properties for a specific object by ID
+.SS Link Management Endpoints
 .TP
-.B PUT /crossbar/{in}/{out}
-Set a specific crossbar routing coefficient (0.0-1.0).
-.SS Gain Controls
+.B GET /links
+List all active links with detailed connection information
 .TP
-.B GET /input_gain/{channel}
-Get input gain for specified channel (0=left, 1=right).
+.B POST /links/apply
+Apply a single link rule (JSON body)
 .TP
-.B PUT /input_gain/{channel}
-Set input gain in dB (-100 to +24).
+.B POST /links/batch
+Apply multiple link rules at once
 .TP
-.B GET /output_gain/{channel}
-Get output gain for specified channel.
+.B GET /links/default
+Get the default link rules configured in the server
 .TP
-.B PUT /output_gain/{channel}
-Set output gain in dB (-100 to +24).
+.B POST /links/apply-defaults
+Apply all default link rules
+.SS SpeakerEQ Endpoints
 .TP
-.B GET /master_gain
-Get master gain applied to all channels.
+.B GET /speakereq/structure
+Get the plugin structure (blocks, I/O count, enabled state)
 .TP
-.B PUT /master_gain
-Set master gain in dB (-100 to +24).
-.SS Delay
+.B GET /speakereq/io
+Get input/output channel count
 .TP
-.B GET /delay/{channel}
-Get delay for specified channel.
+.B GET /speakereq/status
+Get complete plugin status (all settings in one call)
 .TP
-.B PUT /delay/{channel}
-Set delay in milliseconds (0-100).
-.SS Plugin Control
+.B GET /speakereq/eq/:block/:band
+Get a specific EQ band configuration
 .TP
-.B GET /enable
-Get plugin enable state.
+.B PUT /speakereq/eq/:block/:band
+Set a specific EQ band (type, frequency, Q, gain)
 .TP
-.B PUT /enable
-Enable or disable the plugin (true/false).
-.SH EQ BAND OBJECT
-EQ bands are configured using JSON objects with the following fields:
+.B PUT /speakereq/eq/:block/:band/enabled
+Enable or disable a specific EQ band
 .TP
-.B type
-Filter type: "off", "peaking", "lowpass", "highpass", "low_shelf", "high_shelf", "notch"
+.B PUT /speakereq/eq/:block/clear
+Clear all EQ bands in a block
 .TP
-.B frequency
-Center/corner frequency in Hz (20-20000)
+.B GET /speakereq/gain/master
+Get master gain level
 .TP
-.B q
-Q factor/bandwidth (0.1-10.0)
+.B PUT /speakereq/gain/master
+Set master gain level
 .TP
-.B gain
-Gain in dB (-24 to +24)
+.B GET /speakereq/enable
+Get plugin enable status
 .TP
-.B enabled
-Band enable state (true/false)
+.B PUT /speakereq/enable
+Enable or disable the plugin
+.PP
+For complete API documentation with request/response examples, see the
+\fBapi.md\fP file included with the distribution or available at
+the project documentation site.
 .SH EXAMPLES
-.SS Get complete plugin status
-.nf
-curl http://localhost:2716/api/v1/status
-.fi
-.SS Set EQ band on output channel 0, band 1
-.nf
-curl -X PUT http://localhost:2716/api/v1/eq/output_0/1 \\
+.SS Start server on default port (2716)
+.EX
+pipewire-api
+.EE
+.SS Start server on custom port, localhost only
+.EX
+pipewire-api --port 8080 --localhost
+.EE
+.SS Start server without automatic link management
+.EX
+pipewire-api --no-auto-link
+.EE
+.SS Enable debug logging
+.EX
+RUST_LOG=debug pipewire-api
+.EE
+.SS Query all nodes via API
+.EX
+curl http://localhost:2716/api/v1/ls/nodes
+.EE
+.SS Get properties for a specific object
+.EX
+curl http://localhost:2716/api/v1/properties/45
+.EE
+.SS Apply a link rule via API
+.EX
+curl -X POST http://localhost:2716/api/v1/links/apply \\
   -H "Content-Type: application/json" \\
-  -d '{"type":"peaking","frequency":1000,"q":1.41,"gain":3.0,"enabled":true}'
-.fi
-.SS Enable a specific EQ band
-.nf
-curl -X PUT http://localhost:2716/api/v1/eq/output_0/1/enabled \\
+  -d '{
+    "name": "Browser to Speakers",
+    "source": {"node.name": "^firefox.*"},
+    "destination": {"node.name": "^alsa_output"},
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 5
+  }'
+.EE
+.SS Set SpeakerEQ master gain to -3dB
+.EX
+curl -X PUT http://localhost:2716/api/v1/speakereq/gain/master \\
   -H "Content-Type: application/json" \\
-  -d 'true'
-.fi
-.SS Set crossbar routing (swap left/right channels)
-.nf
-curl -X PUT http://localhost:2716/api/v1/crossbar \\
-  -H "Content-Type: application/json" \\
-  -d '{"input_0_to_output_0":0.0,"input_0_to_output_1":1.0,
-       "input_1_to_output_0":1.0,"input_1_to_output_1":0.0}'
-.fi
-.SS Set master gain to -6dB
-.nf
-curl -X PUT http://localhost:2716/api/v1/master_gain \\
-  -H "Content-Type: application/json" \\
-  -d '-6.0'
-.fi
-.SS Set output delay for left channel
-.nf
-curl -X PUT http://localhost:2716/api/v1/delay/0 \\
-  -H "Content-Type: application/json" \\
-  -d '5.0'
-.fi
-.SS Disable the plugin
-.nf
-curl -X PUT http://localhost:2716/api/v1/enable \\
-  -H "Content-Type: application/json" \\
-  -d 'false'
-.fi
-.SH HTTP STATUS CODES
+  -d '{"gain_db": -3.0}'
+.EE
+.SH ENVIRONMENT
 .TP
-.B 200 OK
-Successful GET or PUT request
-.TP
-.B 400 Bad Request
-Invalid parameter or JSON format
-.TP
-.B 404 Not Found
-Block, band, or endpoint not found
-.TP
-.B 500 Internal Server Error
-Server error or PipeWire communication failure
-.SH CHANNEL NUMBERING
-Channels and indices are zero-based:
+.B RUST_LOG
+Controls logging verbosity. Valid values:
+.RS
 .IP \(bu 2
-Channel 0 = Left
+\fBerror\fP: Only errors
 .IP \(bu 2
-Channel 1 = Right
-.PP
-EQ bands are numbered 1-20 for each block (input_0, input_1, output_0, output_1).
-.SH SYSTEMD SERVICE
-The API server is typically run as a systemd user service:
-.PP
-.nf
-systemctl --user start pipewire-api
-systemctl --user enable pipewire-api
-systemctl --user status pipewire-api
-.fi
-.PP
-The service automatically starts after PipeWire and includes a 2-second delay to ensure PipeWire is fully initialized.
+\fBwarn\fP: Warnings and errors
+.IP \(bu 2
+\fBinfo\fP: Informational messages (recommended)
+.IP \(bu 2
+\fBdebug\fP: Detailed debugging information
+.IP \(bu 2
+\fBtrace\fP: Very verbose tracing
+.RE
+.IP
+Example: \fBRUST_LOG=info pipewire-api\fP
 .SH FILES
 .TP
-.B /usr/bin/pipewire-api
-API server binary
+.B /etc/pipewire-api/link-rules.conf
+System-wide link rules configuration
 .TP
-.B ~/.config/systemd/user/pipewire-api.service
-User systemd service unit
-.TP
-.B /usr/share/doc/speakereq/api.md
-Complete API specification in Markdown format
-.SH NOTES
+.B ~/.config/pipewire-api/link-rules.conf
+User-specific link rules configuration
+.SH DEPENDENCIES
+The server requires:
 .IP \(bu 2
-The API server requires PipeWire to be running
+A running PipeWire daemon
 .IP \(bu 2
-The speakereq2x2 plugin must be loaded in PipeWire
+The \fBspeakereq2x2\fP node to be available (for SpeakerEQ endpoints)
 .IP \(bu 2
-All parameter changes take effect immediately
-.IP \(bu 2
-Changes are not persistent unless saved with pw-param
-.IP \(bu 2
-The delay parameter only applies to output channels
-.SH SEE ALSO
-.BR speakereq2x2 (1),
-.BR pw-param (1),
-.BR pipewire (1),
-.BR systemctl (1)
+Network connectivity to the specified port
 .PP
-Complete API documentation: /usr/share/doc/speakereq/api.md
+If the \fBspeakereq2x2\fP node is not found, the server will fail to start.
+Use \fB--no-auto-link\fP if you only need generic PipeWire endpoints.
+.SH DIAGNOSTICS
+.TP
+.B "Failed to find speakereq2x2 node"
+The SpeakerEQ plugin is not loaded in PipeWire. Verify the plugin is installed
+and configured in PipeWire's configuration. Use \fBpw-dump\fP to list available nodes.
+.TP
+.B "Failed to bind to port"
+The specified port is already in use or you don't have permission to bind to it.
+Try a different port with \fB--port\fP or check if another instance is running.
+.TP
+.B "Link creation failed"
+Common causes:
+.RS
+.IP \(bu 2
+Source or destination node doesn't exist
+.IP \(bu 2
+Regex patterns don't match any nodes
+.IP \(bu 2
+Port count mismatch between source and destination
+.IP \(bu 2
+Ports are already linked
+.RE
+.IP
+Use \fBRUST_LOG=debug\fP for detailed diagnostics and \fBpw-dump\fP to inspect
+available nodes and their properties.
+.SH SECURITY CONSIDERATIONS
+By default, the server binds to all network interfaces (0.0.0.0), making it
+accessible from any machine that can reach the host. For security:
+.IP \(bu 2
+Use \fB--localhost\fP when remote access is not needed
+.IP \(bu 2
+Configure firewall rules to restrict access
+.IP \(bu 2
+Consider using a reverse proxy with authentication
+.IP \(bu 2
+Be aware that the API provides full control over audio routing
 .SH BUGS
-Report bugs to: https://github.com/example/speakereq/issues
-.SH AUTHOR
-Speaker EQ Team
-.SH COPYRIGHT
-Copyright \(co 2026 Speaker EQ Team
-.br
-Licensed under GPLv3+: GNU GPL version 3 or later.
+Report bugs to the HiFiBerry issue tracker or via email to info@hifiberry.com
+.SH SEE ALSO
+.BR link-rules.conf (5),
+.BR pw-link (1),
+.BR pw-dump (1),
+.BR pipewire (1),
+.BR pw-cli (1)
+.PP
+Complete API documentation: \fBapi.md\fP
+.PP
+PipeWire documentation: https://docs.pipewire.org/
+.SH AUTHORS
+HiFiBerry <info@hifiberry.com>
