@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use pw_api::{PipeWireClient, default_link_rules};
-use pw_api::linker::apply_rule;
+use pw_api::{PipeWireClient, default_link_rules, apply_link_rule};
 
 #[derive(Parser, Debug)]
 #[command(name = "pw-link")]
@@ -77,16 +76,21 @@ fn apply_default_rules(verbose: bool) -> Result<()> {
             println!("  Action: {:?}", rule.link_type);
         }
 
-        match apply_rule(client.registry(), client.mainloop(), rule) {
-            Ok(messages) => {
-                successful += 1;
-                if verbose {
-                    for msg in messages {
-                        println!("  ✓ {}", msg);
-                    }
-                } else if !messages.is_empty() {
-                    for msg in messages {
-                        println!("{}", msg);
+        match apply_link_rule(client.registry(), client.core(), client.mainloop(), rule) {
+            Ok(results) => {
+                let rule_success = results.iter().all(|r| r.success);
+                if rule_success {
+                    successful += 1;
+                } else {
+                    failed += 1;
+                }
+                
+                for result in results {
+                    if verbose || !result.success {
+                        let prefix = if result.success { "  ✓" } else { "  ✗" };
+                        println!("{} {}", prefix, result.message);
+                    } else {
+                        println!("{}", result.message);
                     }
                 }
             }

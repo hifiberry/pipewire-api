@@ -52,6 +52,11 @@ impl PipeWireClient {
         &self.registry
     }
 
+    /// Get the core reference
+    pub fn core(&self) -> &pw::core::CoreRc {
+        &self.core
+    }
+
     /// Find a specific node by name with timeout
     pub fn find_node(&self, node_name: &str, timeout_secs: u64) -> Result<NodeInfo> {
         let node_info: Rc<RefCell<Option<NodeInfo>>> = Rc::new(RefCell::new(None));

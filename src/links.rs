@@ -9,7 +9,8 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use crate::api_server::{ApiError, AppState};
-use crate::linker::{apply_rule, LinkRule};
+use crate::linker::LinkRule;
+use crate::link_manager::apply_link_rule as apply_link_rule_internal;
 use crate::pipewire_client::PipeWireClient;
 
 /// Create the router for link management endpoints
@@ -58,12 +59,15 @@ pub async fn apply_link_rule(
         .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
 
     // Apply the rule
-    match apply_rule(client.registry(), client.mainloop(), &rule) {
+    match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), &rule) {
         Ok(results) => {
-            info!("Successfully applied link rule");
-            let message = results.join("; ");
+            let success = results.iter().all(|r| r.success);
+            let messages: Vec<String> = results.iter().map(|r| r.message.clone()).collect();
+            let message = messages.join("; ");
+            
+            info!("Link rule application complete: success={}", success);
             Ok(Json(LinkResponse {
-                success: true,
+                success,
                 message: if message.is_empty() { "Link rule applied".to_string() } else { message },
                 details: None,
             }))
@@ -193,14 +197,22 @@ pub async fn apply_batch_rules(
     for (idx, rule) in request.rules.iter().enumerate() {
         debug!("Applying rule {}/{}", idx + 1, total);
         
-        match apply_rule(client.registry(), client.mainloop(), rule) {
-            Ok(messages) => {
-                successful += 1;
+        match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), rule) {
+            Ok(link_results) => {
+                let all_success = link_results.iter().all(|r| r.success);
+                let messages: Vec<String> = link_results.iter().map(|r| r.message.clone()).collect();
                 let message = messages.join("; ");
+                
+                if all_success {
+                    successful += 1;
+                } else {
+                    failed += 1;
+                }
+                
                 results.push(LinkResponse {
-                    success: true,
+                    success: all_success,
                     message: if message.is_empty() {
-                        format!("Rule {} applied successfully", idx + 1)
+                        format!("Rule {} applied", idx + 1)
                     } else {
                         format!("Rule {}: {}", idx + 1, message)
                     },
@@ -259,12 +271,20 @@ pub async fn apply_default_rules(
     for (idx, rule) in rules.iter().enumerate() {
         debug!("Applying default rule {}/{}", idx + 1, total);
         
-        match apply_rule(client.registry(), client.mainloop(), rule) {
-            Ok(messages) => {
-                successful += 1;
+        match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), rule) {
+            Ok(link_results) => {
+                let all_success = link_results.iter().all(|r| r.success);
+                let messages: Vec<String> = link_results.iter().map(|r| r.message.clone()).collect();
                 let message = messages.join("; ");
+                
+                if all_success {
+                    successful += 1;
+                } else {
+                    failed += 1;
+                }
+                
                 results.push(LinkResponse {
-                    success: true,
+                    success: all_success,
                     message: if message.is_empty() {
                         format!("Default rule {} applied successfully", idx + 1)
                     } else {

@@ -214,25 +214,6 @@ fn find_matching_nodes(
     Ok(found_nodes)
 }
 
-/// Create a link between two nodes
-/// TODO: This needs proper PipeWire Core API integration to create links
-/// Currently returns an error indicating this feature needs implementation
-pub fn create_link(
-    _registry: &pw::registry::RegistryRc,
-    _mainloop: &pw::main_loop::MainLoopRc,
-    source_id: u32,
-    dest_id: u32,
-) -> Result<u32> {
-    // TODO: Implement actual link creation using PipeWire Core API
-    // This requires using the core.create_object method with proper parameters
-    // For now, return an error to indicate this needs implementation
-    Err(anyhow!(
-        "Link creation not yet implemented. Would create link from node {} to node {}",
-        source_id,
-        dest_id
-    ))
-}
-
 /// Destroy a link
 pub fn destroy_link(
     registry: &pw::registry::RegistryRc,
@@ -261,9 +242,12 @@ pub fn apply_rule(
 ) -> Result<Vec<String>> {
     let mut results = Vec::new();
     
-    // Collect ALL nodes in a single pass
+    // Collect ALL nodes and ports in a single pass
     let all_nodes: Rc<RefCell<Vec<NodeWithProps>>> = Rc::new(RefCell::new(Vec::new()));
     let all_nodes_clone = all_nodes.clone();
+    
+    let all_ports: Rc<RefCell<Vec<(u32, u32, String, bool)>>> = Rc::new(RefCell::new(Vec::new()));
+    let all_ports_clone = all_ports.clone();
     
     // Set up timeout
     let timeout_mainloop = mainloop.clone();
@@ -284,6 +268,28 @@ pub fn apply_rule(
                             node_nick: props.get("node.nick").map(|s| s.to_string()),
                             object_path: props.get("object.path").map(|s| s.to_string()),
                         });
+                    }
+                } else if global.type_ == pw::types::ObjectType::Port {
+                    if let Some(props) = &global.props {
+                        if let Some(node_id_str) = props.get("node.id") {
+                            if let Ok(node_id) = node_id_str.parse::<u32>() {
+                                let port_name = props.get("port.name")
+                                    .or_else(|| props.get("port.alias"))
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                
+                                let is_output = props.get("port.direction")
+                                    .map(|d| d == "out")
+                                    .unwrap_or(false);
+                                
+                                all_ports_clone.borrow_mut().push((
+                                    global.id,
+                                    node_id,
+                                    port_name,
+                                    is_output,
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -337,21 +343,46 @@ pub fn apply_rule(
         LinkType::Link => {
             for source in &sources {
                 for dest in &destinations {
-                    match create_link(registry, mainloop, source.id, dest.id) {
-                        Ok(link_id) => {
-                            let msg = format!(
-                                "Created link {} between {} (id: {}) and {} (id: {})",
-                                link_id, source.name, source.id, dest.name, dest.id
-                            );
-                            results.push(msg);
+                    // Find ports for these nodes
+                    let mut source_outputs = Vec::new();
+                    let mut dest_inputs = Vec::new();
+                    
+                    for (port_id, node_id, port_name, is_output) in all_ports.borrow().iter() {
+                        if *node_id == source.id && *is_output {
+                            source_outputs.push((*port_id, port_name.clone()));
+                        } else if *node_id == dest.id && !*is_output {
+                            dest_inputs.push((*port_id, port_name.clone()));
                         }
-                        Err(e) => {
-                            let msg = format!(
-                                "Failed to link {} to {}: {}",
-                                source.name, dest.name, e
-                            );
-                            results.push(msg);
-                        }
+                    }
+                    
+                    // Check port counts match
+                    if source_outputs.len() != dest_inputs.len() {
+                        let msg = format!(
+                            "Port count mismatch for {} -> {}: {} output ports vs {} input ports",
+                            source.name, dest.name, source_outputs.len(), dest_inputs.len()
+                        );
+                        results.push(msg);
+                        continue;
+                    }
+                    
+                    if source_outputs.is_empty() {
+                        let msg = format!("No ports found to link {} -> {}", source.name, dest.name);
+                        results.push(msg);
+                        continue;
+                    }
+                    
+                    // Sort ports by ID to ensure consistent ordering
+                    source_outputs.sort_by_key(|(id, _)| *id);
+                    dest_inputs.sort_by_key(|(id, _)| *id);
+                    
+                    // List what would be linked
+                    for ((src_port_id, src_port_name), (dst_port_id, dst_port_name)) in 
+                        source_outputs.iter().zip(dest_inputs.iter()) {
+                        let msg = format!(
+                            "Would link port {} ({}) to port {} ({})",
+                            src_port_id, src_port_name, dst_port_id, dst_port_name
+                        );
+                        results.push(msg);
                     }
                 }
             }
