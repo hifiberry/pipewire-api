@@ -6,6 +6,7 @@ use axum::{
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use crate::parameters::ParameterValue;
+use crate::linker::LinkRule;
 
 // Since PipeWire Node is not Send/Sync, we store just the node name
 // and recreate connections per request (or use a message passing pattern)
@@ -13,6 +14,8 @@ pub struct AppState {
     pub node_name: String,
     // Cache for parameters to avoid too many PipeWire calls
     pub cache: Arc<Mutex<Option<HashMap<String, ParameterValue>>>>,
+    // Link rules to be monitored and relinked
+    pub link_rules: Arc<Mutex<Vec<LinkRule>>>,
 }
 
 impl AppState {
@@ -20,7 +23,16 @@ impl AppState {
         Self {
             node_name,
             cache: Arc::new(Mutex::new(None)),
+            link_rules: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub fn set_link_rules(&self, rules: Vec<LinkRule>) {
+        *self.link_rules.lock().unwrap() = rules;
+    }
+
+    pub fn get_link_rules(&self) -> Vec<LinkRule> {
+        self.link_rules.lock().unwrap().clone()
     }
 
     // Helper to get parameters (with caching)

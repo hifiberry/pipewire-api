@@ -104,6 +104,10 @@ pub fn apply_link_rule(
 ) -> Result<Vec<LinkRuleResult>> {
     let mut results = Vec::new();
     
+    // Store created link proxies to keep them alive
+    let link_proxies: Rc<RefCell<Vec<pw::link::Link>>> = Rc::new(RefCell::new(Vec::new()));
+    let link_proxies_clone = link_proxies.clone();
+    
     // Collect ALL nodes and ports in a single pass
     let all_nodes: Rc<RefCell<Vec<NodeInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let all_nodes_clone = all_nodes.clone();
@@ -241,6 +245,18 @@ pub fn apply_link_rule(
                     for (src_port, dst_port) in source_outputs.iter().zip(dest_inputs.iter()) {
                         match create_port_link(core, src_port.id, dst_port.id) {
                             Ok(link_id) => {
+                                // Store the proxy to keep it alive
+                                // Add link.passive property so the link persists after client disconnects
+                                let proxy = core.create_object::<pw::link::Link>(
+                                    "link-factory",
+                                    &pw::properties::properties! {
+                                        "link.output.port" => src_port.id.to_string(),
+                                        "link.input.port" => dst_port.id.to_string(),
+                                        "object.linger" => "true",
+                                    },
+                                )?;
+                                link_proxies_clone.borrow_mut().push(proxy);
+                                
                                 results.push(LinkRuleResult {
                                     success: true,
                                     message: format!(
@@ -270,6 +286,15 @@ pub fn apply_link_rule(
             });
         }
     }
+    
+    // Run the mainloop briefly to allow PipeWire to process the link creation
+    // Set up a timer to quit the loop after a short delay
+    let process_mainloop = mainloop.clone();
+    let _timer = mainloop.loop_().add_timer(move |_| {
+        process_mainloop.quit();
+    });
+    _timer.update_timer(Some(std::time::Duration::from_millis(500)), None);
+    mainloop.run();
     
     Ok(results)
 }

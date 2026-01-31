@@ -15,6 +15,8 @@ pub fn get_default_rules() -> Vec<LinkRule> {
                 object_path: Some("alsa:.*:sndrpihifiberry:.*:playback".to_string()),
             },
             link_type: LinkType::Link,
+            link_at_startup: true,
+            relink_every: 10,
         },
     ]
 }

@@ -14,6 +14,10 @@ struct Args {
     /// Bind to localhost only (127.0.0.1) instead of all interfaces (0.0.0.0)
     #[arg(long)]
     localhost: bool,
+
+    /// Disable automatic link management
+    #[arg(long)]
+    no_auto_link: bool,
 }
 
 #[tokio::main]
@@ -31,6 +35,19 @@ async fn main() -> Result<()> {
 
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
+
+    // Load default link rules unless disabled
+    if !args.no_auto_link {
+        let default_rules = pw_api::default_link_rules::get_default_rules();
+        tracing::info!("Loaded {} default link rule(s)", default_rules.len());
+        state.set_link_rules(default_rules);
+
+        // Apply startup rules
+        pw_api::link_scheduler::apply_startup_rules(state.clone()).await;
+
+        // Start the link scheduler for periodic relinking
+        let _scheduler_handle = pw_api::link_scheduler::start_link_scheduler(state.clone());
+    }
 
     // Create router with generic, speakereq, and links endpoints
     let app = pw_api::generic::create_router(state.clone())

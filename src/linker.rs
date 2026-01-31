@@ -62,6 +62,16 @@ pub struct LinkRule {
     pub destination: NodeIdentifier,
     #[serde(rename = "type")]
     pub link_type: LinkType,
+    /// Whether to apply this rule at startup (default: true)
+    #[serde(default = "default_link_at_startup")]
+    pub link_at_startup: bool,
+    /// How often to check and relink in seconds. 0 = link once only (default: 0)
+    #[serde(default)]
+    pub relink_every: u64,
+}
+
+fn default_link_at_startup() -> bool {
+    true
 }
 
 /// Information about a found node
