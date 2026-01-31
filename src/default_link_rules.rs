@@ -4,6 +4,7 @@ use crate::linker::{LinkRule, LinkType, NodeIdentifier};
 pub fn get_default_rules() -> Vec<LinkRule> {
     vec![
         LinkRule {
+            name: "SpeakerEQ to HiFiBerry".to_string(),
             source: NodeIdentifier {
                 node_name: Some("^speakereq.x.\\.output$".to_string()),
                 node_nick: None,

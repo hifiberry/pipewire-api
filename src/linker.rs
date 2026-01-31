@@ -58,6 +58,8 @@ impl NodeIdentifier {
 /// A link rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkRule {
+    /// Name of the link rule (used for the created link objects)
+    pub name: String,
     pub source: NodeIdentifier,
     pub destination: NodeIdentifier,
     #[serde(rename = "type")]

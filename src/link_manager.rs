@@ -290,13 +290,14 @@ pub fn apply_link_rule(
                         match create_port_link(core, src_port.id, dst_port.id) {
                             Ok(link_id) => {
                                 // Store the proxy to keep it alive
-                                // Add link.passive property so the link persists after client disconnects
+                                // Add link properties including name and linger
                                 let proxy = core.create_object::<pw::link::Link>(
                                     "link-factory",
                                     &pw::properties::properties! {
                                         "link.output.port" => src_port.id.to_string(),
                                         "link.input.port" => dst_port.id.to_string(),
                                         "object.linger" => "true",
+                                        "object.name" => rule.name.clone(),
                                     },
                                 )?;
                                 link_proxies_clone.borrow_mut().push(proxy);
