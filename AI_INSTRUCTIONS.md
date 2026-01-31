@@ -37,6 +37,13 @@ This project provides a REST API server and command-line tools for controlling P
 - Ensure code compiles without warnings
 - Test API endpoints manually or with automated tests in `tests/`
 - Verify systemd service functionality
+- Run the server with `RUST_LOG=info cargo run` to see debug output
+
+## Development
+
+- Use `RUST_LOG=info cargo run` to run the API server with logging enabled
+- Default port is 2716, can be changed with `-p` flag
+- Do not use `--localhost` flag 
 
 ## Documentation
 
