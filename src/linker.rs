@@ -5,6 +5,27 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use pipewire as pw;
 
+/// Log level for rule execution messages
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        LogLevel::Info
+    }
+}
+
+/// Default log level for errors
+fn default_error_level() -> LogLevel {
+    LogLevel::Error
+}
+
 /// Link operation type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +91,12 @@ pub struct LinkRule {
     /// How often to check and relink in seconds. 0 = link once only (default: 0)
     #[serde(default)]
     pub relink_every: u64,
+    /// Log level for normal operations (link created, already exists, etc.) - default: info
+    #[serde(default)]
+    pub info_level: LogLevel,
+    /// Log level for errors (node not found, can't create link, etc.) - default: error
+    #[serde(default = "default_error_level")]
+    pub error_level: LogLevel,
 }
 
 fn default_link_at_startup() -> bool {

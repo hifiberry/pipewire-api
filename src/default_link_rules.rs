@@ -1,4 +1,4 @@
-use crate::linker::{LinkRule, LinkType, NodeIdentifier};
+use crate::linker::{LinkRule, LinkType, LogLevel, NodeIdentifier};
 
 /// Get the default link rules for automatic connection
 pub fn get_default_rules() -> Vec<LinkRule> {
@@ -18,6 +18,8 @@ pub fn get_default_rules() -> Vec<LinkRule> {
             link_type: LinkType::Link,
             link_at_startup: true,
             relink_every: 10,
+            info_level: LogLevel::Info,
+            error_level: LogLevel::Error,
         },
     ]
 }

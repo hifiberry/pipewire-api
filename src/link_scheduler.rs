@@ -5,7 +5,20 @@ use tracing::{debug, error, info, warn};
 
 use crate::api_server::AppState;
 use crate::link_manager::apply_link_rule;
+use crate::linker::LogLevel;
 use crate::pipewire_client::PipeWireClient;
+
+/// Log a message at the specified level
+macro_rules! log_at_level {
+    ($level:expr, $($arg:tt)*) => {
+        match $level {
+            LogLevel::Debug => debug!($($arg)*),
+            LogLevel::Info => info!($($arg)*),
+            LogLevel::Warn => warn!($($arg)*),
+            LogLevel::Error => error!($($arg)*),
+        }
+    };
+}
 
 /// Start the link scheduler task that monitors and relinks based on rules
 pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()> {
@@ -41,8 +54,8 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
 
                 if should_apply {
                     debug!(
-                        "Applying link rule (idx: {}, relink_every: {}s)",
-                        idx, rule.relink_every
+                        "Applying link rule '{}' (idx: {}, relink_every: {}s)",
+                        rule.name, idx, rule.relink_every
                     );
 
                     // Apply the rule
@@ -52,10 +65,12 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                             let failed_count = results.iter().filter(|r| !r.success).count();
                             let total = results.len();
 
+                            // Log successful links at info_level
                             if success_count > 0 {
-                                debug!(
-                                    "Link rule {} applied: {}/{} links successful",
-                                    idx, success_count, total
+                                log_at_level!(
+                                    &rule.info_level,
+                                    "Link rule '{}' applied: {}/{} links successful",
+                                    rule.name, success_count, total
                                 );
                             }
 
@@ -72,14 +87,25 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                             // Update rule status
                             state.update_rule_status(idx, success_count, failed_count, error_msg.clone());
 
-                            for result in results {
-                                if !result.success {
-                                    warn!("Link failed: {}", result.message);
+                            // Log failures at the rule's configured error_level
+                            if failed_count > 0 {
+                                if let Some(ref err_msg) = error_msg {
+                                    log_at_level!(
+                                        &rule.error_level,
+                                        "Link rule '{}' failed: {}",
+                                        rule.name,
+                                        err_msg
+                                    );
                                 }
                             }
                         }
                         Err(e) => {
-                            error!("Failed to apply link rule {}: {}", idx, e);
+                            log_at_level!(
+                                &rule.error_level,
+                                "Failed to apply link rule '{}': {}",
+                                rule.name,
+                                e
+                            );
                             // Update status with error
                             state.update_rule_status(idx, 0, 0, Some(e.to_string()));
                         }
@@ -114,11 +140,11 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
 
     for (idx, rule) in rules.iter().enumerate() {
         if !rule.link_at_startup {
-            debug!("Skipping rule {} (link_at_startup=false)", idx);
+            debug!("Skipping rule '{}' (link_at_startup=false)", rule.name);
             continue;
         }
 
-        debug!("Applying startup rule {}", idx);
+        debug!("Applying startup rule '{}'", rule.name);
         match apply_rule_safe(rule).await {
             Ok(results) => {
                 let success_count = results.iter().filter(|r| r.success).count();
@@ -127,8 +153,8 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
 
                 if total > 0 {
                     info!(
-                        "Startup rule {} applied: {}/{} links successful",
-                        idx, success_count, total
+                        "Startup rule '{}' applied: {}/{} links successful",
+                        rule.name, success_count, total
                     );
                 }
 
@@ -143,18 +169,45 @@ pub async fn apply_startup_rules(state: Arc<AppState>) {
                 };
 
                 // Update rule status
-                state.update_rule_status(idx, success_count, failed_count, error_msg);
+                state.update_rule_status(idx, success_count, failed_count, error_msg.clone());
 
+                // Log results using appropriate log levels
                 for result in results {
                     if result.success {
-                        debug!("  ✓ {}", result.message);
+                        log_at_level!(
+                            &rule.info_level,
+                            "  ✓ {}",
+                            result.message
+                        );
                     } else {
-                        warn!("  ✗ {}", result.message);
+                        log_at_level!(
+                            &rule.error_level,
+                            "  ✗ {}",
+                            result.message
+                        );
+                    }
+                }
+                
+                // Also log a summary if there were failures
+                if failed_count > 0 {
+                    if let Some(ref err_msg) = error_msg {
+                        log_at_level!(
+                            &rule.error_level,
+                            "Startup rule '{}' had {} failure(s): {}",
+                            rule.name,
+                            failed_count,
+                            err_msg
+                        );
                     }
                 }
             }
             Err(e) => {
-                error!("Failed to apply startup rule {}: {}", idx, e);
+                log_at_level!(
+                    &rule.error_level,
+                    "Failed to apply startup rule '{}': {}",
+                    rule.name,
+                    e
+                );
                 // Update status with error
                 state.update_rule_status(idx, 0, 0, Some(e.to_string()));
             }

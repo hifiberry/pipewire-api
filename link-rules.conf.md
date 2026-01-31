@@ -58,6 +58,20 @@ The configuration file uses JSON format and contains an array of link rule objec
   - `0`: Create link only once. If someone removes it, it won't be recreated.
   - `>0`: Check every N seconds and recreate the link if it doesn't exist.
 
+- **`info_level`** (string, default: `"info"`): Log level for normal operations (link created, already exists, removed). Options:
+  - `"debug"`: Only show at debug level
+  - `"info"`: Informational messages (default)
+  - `"warn"`: Show as warnings
+  - `"error"`: Show as errors
+
+- **`error_level`** (string, default: `"error"`): Log level for error conditions (node not found, can't create link). Options:
+  - `"debug"`: Only show at debug level
+  - `"info"`: Informational messages
+  - `"warn"`: Show as warnings
+  - `"error"`: Show as errors (default)
+  
+  These log levels allow fine-grained control. For example, optional links can use `info_level: "debug"` to avoid cluttering logs, while critical links can use `error_level: "error"` to ensure failures are visible.
+
 ## Pattern Matching
 
 All node identifiers use **regular expressions** for matching. Common patterns:
@@ -113,7 +127,9 @@ Link any SpeakerEQ output to HiFiBerry playback, and check every 10 seconds:
     },
     "type": "link",
     "link_at_startup": true,
-    "relink_every": 10
+    "relink_every": 10,
+    "info_level": "debug",
+    "error_level": "error"
   }
 ]
 ```
