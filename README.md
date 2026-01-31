@@ -66,7 +66,35 @@ make deb
 
 ## Documentation
 
-See [api.md](api.md) for API documentation.
+- [api.md](api.md) - General API documentation
+- [LINKS_API.md](LINKS_API.md) - Link management API documentation
+
+## API Endpoints
+
+The API server provides several categories of endpoints:
+
+### Generic PipeWire Inspection
+- `/api/v1/ls` - List all PipeWire objects
+- `/api/v1/ls/{nodes,devices,ports,modules,factories,clients,links}` - List specific object types
+- `/api/v1/properties` - List all objects with properties
+- `/api/v1/properties/:id` - Get properties for a specific object
+
+### SpeakerEQ Control
+- `/api/v1/speakereq/structure` - Get DSP structure
+- `/api/v1/speakereq/io` - Get I/O configuration
+- `/api/v1/speakereq/status` - Get current status
+- `/api/v1/speakereq/eq` - Manage equalizer settings
+- `/api/v1/speakereq/gain` - Control gain settings
+- `/api/v1/speakereq/enable` - Enable/disable processing
+
+### Link Management (Experimental)
+- `/api/v1/links` - List all active links
+- `/api/v1/links/apply` - Apply a single link rule
+- `/api/v1/links/batch` - Apply multiple link rules
+
+See [LINKS_API.md](LINKS_API.md) for detailed link management documentation.
+
+**Note:** Link creation is not yet fully implemented. The API can list existing links and validate rules, but cannot create new links yet.
 
 ## License
 

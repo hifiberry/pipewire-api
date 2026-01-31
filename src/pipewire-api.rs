@@ -32,9 +32,10 @@ async fn main() -> Result<()> {
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
 
-    // Create router with both generic and speakereq endpoints
+    // Create router with generic, speakereq, and links endpoints
     let app = pw_api::generic::create_router(state.clone())
-        .merge(pw_api::speakereq::create_router(state));
+        .merge(pw_api::speakereq::create_router(state.clone()))
+        .merge(pw_api::links::create_router(state));
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
