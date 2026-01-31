@@ -57,16 +57,16 @@ install-api: target/release/pipewire-api
 		echo "Requires=pipewire.service" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "[Service]" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
-		echo "Type=simple" >> $$USER_HOME/.config/systemd/user/pipewire-api.service;
+		echo "Type=simple" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "ExecStartPre=/bin/sleep 2" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "ExecStart=$(PREFIX)/bin/pipewire-api" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "Restart=on-failure" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
-		echo "RestartSec=5" >> $$USER_HOME/.config/systemd/user/pipewire-api.service;
+		echo "RestartSec=5" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "[Install]" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		echo "WantedBy=default.target" >> $$USER_HOME/.config/systemd/user/pipewire-api.service; \
 		chown -R $$SUDO_USER:$$(id -gn $$SUDO_USER) $$USER_HOME/.config/systemd/user; \
-		echo "Installed systemd unit to $$USER_HOME/.config/systemd/user/pipewire-api.service";
+		echo "Installed systemd unit to $$USER_HOME/.config/systemd/user/pipewire-api.service"; \
 	else \
 		mkdir -p $$HOME/.config/systemd/user; \
 		echo "[Unit]" > $$HOME/.config/systemd/user/pipewire-api.service; \
