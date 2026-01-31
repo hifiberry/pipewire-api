@@ -41,8 +41,41 @@ This installs:
 - `/usr/bin/pipewire-api` - REST API server
 - `/usr/bin/pw-param` - Parameter manipulation tool
 - `/usr/bin/link-nodes` - Link management tool
+- `/etc/pipewire-api/link-rules.conf` - Default link rules configuration
 - Man pages for both tools
 - Systemd user service
+
+## Configuration
+
+### Link Rules
+
+The API server can automatically manage PipeWire links based on rules defined in configuration files.
+
+**Configuration file locations** (in order of priority):
+1. `~/.config/pipewire-api/link-rules.conf` - User-specific configuration
+2. `/etc/pipewire-api/link-rules.conf` - System-wide configuration
+
+If no configuration files are found, the server will use hardcoded default rules.
+
+**Example configuration** (`link-rules.conf`):
+```json
+[
+  {
+    "name": "SpeakerEQ to HiFiBerry",
+    "source": {
+      "node.name": "^speakereq.x.\\.output$"
+    },
+    "destination": {
+      "object.path": "alsa:.*:sndrpihifiberry:.*:playback"
+    },
+    "type": "link",
+    "link_at_startup": true,
+    "relink_every": 10
+  }
+]
+```
+
+See `link-rules.conf.md` for detailed documentation on the configuration format.
 
 ## Usage
 

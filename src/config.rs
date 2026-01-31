@@ -36,30 +36,14 @@ pub fn load_link_rules_from_file(path: &PathBuf) -> Result<Vec<LinkRule>> {
 /// Load all link rules from available configuration files
 /// 
 /// Loads rules from (in order of precedence):
-/// 1. System config: /etc/pipewire-api/link-rules.conf
-/// 2. User config: ~/.config/pipewire-api/link-rules.conf
+/// 1. User config: ~/.config/pipewire-api/link-rules.conf (highest priority)
+/// 2. System config: /etc/pipewire-api/link-rules.conf (fallback)
 /// 
-/// User config takes precedence if both exist
+/// Returns all rules found from both locations
 pub fn load_all_link_rules() -> Vec<LinkRule> {
     let mut all_rules = Vec::new();
     
-    // Try system config first
-    let system_path = get_system_config_path();
-    if system_path.exists() {
-        match load_link_rules_from_file(&system_path) {
-            Ok(rules) => {
-                info!("Loaded {} rule(s) from system config", rules.len());
-                all_rules.extend(rules);
-            }
-            Err(e) => {
-                warn!("Failed to load system config: {}", e);
-            }
-        }
-    } else {
-        debug!("System config file does not exist: {}", system_path.display());
-    }
-    
-    // Try user config (takes precedence)
+    // Try user config first (highest priority)
     if let Some(user_path) = get_user_config_path() {
         if user_path.exists() {
             match load_link_rules_from_file(&user_path) {
@@ -74,6 +58,22 @@ pub fn load_all_link_rules() -> Vec<LinkRule> {
         } else {
             debug!("User config file does not exist: {}", user_path.display());
         }
+    }
+    
+    // Try system config (fallback if user config doesn't exist or is empty)
+    let system_path = get_system_config_path();
+    if system_path.exists() {
+        match load_link_rules_from_file(&system_path) {
+            Ok(rules) => {
+                info!("Loaded {} rule(s) from system config", rules.len());
+                all_rules.extend(rules);
+            }
+            Err(e) => {
+                warn!("Failed to load system config: {}", e);
+            }
+        }
+    } else {
+        debug!("System config file does not exist: {}", system_path.display());
     }
     
     if all_rules.is_empty() {

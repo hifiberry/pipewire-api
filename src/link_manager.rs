@@ -27,7 +27,6 @@ struct PortInfo {
 /// Information about an existing link
 #[derive(Debug, Clone)]
 struct LinkInfo {
-    id: u32,
     output_port: u32,
     input_port: u32,
 }
@@ -179,7 +178,6 @@ pub fn apply_link_rule(
                         
                         if output_port > 0 && input_port > 0 {
                             existing_links_clone.borrow_mut().push(LinkInfo {
-                                id: global.id,
                                 output_port,
                                 input_port,
                             });

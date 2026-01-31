@@ -5,7 +5,7 @@ VERSION = $(shell cat VERSION 2>/dev/null || echo "1.0.0")
 PREFIX ?= /usr/local
 DESTDIR ?=
 
-.PHONY: all api clean install install-all install-api install-pw-param install-link-nodes install-api-man deb deb-clean
+.PHONY: all api clean install install-all install-api install-pw-param install-link-nodes install-api-man install-config deb deb-clean
 
 all: api
 
@@ -20,9 +20,9 @@ clean:
 	rm -rf debian/.debhelper debian/pipewire-api debian/tmp debian/files debian/*.substvars debian/*.debhelper.log debian/debhelper-build-stamp
 	rm -f debian/*.log debian/*.debhelper
 
-install: install-pw-param install-link-nodes install-api-man install-api
+install: install-pw-param install-link-nodes install-api-man install-config install-api
 
-install-all: install-pw-param install-link-nodes install-api-man install-api
+install-all: install-pw-param install-link-nodes install-api-man install-config install-api
 
 install-pw-param:
 	@echo "Installing pw-param tool..."
@@ -35,6 +35,12 @@ install-link-nodes:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp target/release/link-nodes $(DESTDIR)$(PREFIX)/bin/
 	@echo "Installed link-nodes to $(DESTDIR)$(PREFIX)/bin/link-nodes"
+
+install-config:
+	@echo "Installing default config file..."
+	mkdir -p $(DESTDIR)/etc/pipewire-api
+	cp link-rules.conf $(DESTDIR)/etc/pipewire-api/
+	@echo "Installed default config to $(DESTDIR)/etc/pipewire-api/link-rules.conf"
 
 install-api-man: pipewire-api.1
 	@echo "Installing API man page..."

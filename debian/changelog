@@ -1,3 +1,12 @@
+pipewire-api (1.0.6-1) stable; urgency=medium
+
+  * Added default link-rules.conf configuration file installed to /etc/pipewire-api/
+  * Configuration files now prioritized: user config (~/.config) then system config (/etc)
+  * Hardcoded defaults now used only as fallback when no config files exist
+  * Fixed compiler warnings (removed unused code)
+
+ -- HiFiBerry <info@hifiberry.com>  Fri, 31 Jan 2026 15:30:00 +0100
+
 pipewire-api (1.0.5-1) stable; urgency=medium
 
   * Renamed pw-link to link-nodes to avoid conflict with PipeWire's native pw-link tool

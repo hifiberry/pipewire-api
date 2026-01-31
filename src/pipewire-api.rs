@@ -36,18 +36,18 @@ async fn main() -> Result<()> {
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
 
-    // Load default link rules unless disabled
+    // Load link rules unless disabled
     if !args.no_auto_link {
-        let mut all_rules = Vec::new();
+        // Load rules from config files (user config takes precedence over system config)
+        let mut all_rules = pw_api::config::load_all_link_rules();
         
-        // Load default rules
-        let default_rules = pw_api::default_link_rules::get_default_rules();
-        tracing::info!("Loaded {} default link rule(s)", default_rules.len());
-        all_rules.extend(default_rules);
-        
-        // Load rules from config files
-        let config_rules = pw_api::config::load_all_link_rules();
-        all_rules.extend(config_rules);
+        // If no rules were loaded from config files, use hardcoded defaults
+        if all_rules.is_empty() {
+            tracing::info!("No config files found, using hardcoded default rules");
+            let default_rules = pw_api::default_link_rules::get_default_rules();
+            tracing::info!("Loaded {} hardcoded default rule(s)", default_rules.len());
+            all_rules.extend(default_rules);
+        }
         
         tracing::info!("Total {} link rule(s) configured", all_rules.len());
         state.set_link_rules(all_rules);
