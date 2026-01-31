@@ -61,14 +61,14 @@ Get the default link rules configured for the system.
 [
   {
     "source": {
-      "node_name": "speakereq?x?.output",
+      "node_name": "^speakereq.x.\\.output$",
       "node_nick": null,
       "object_path": null
     },
     "destination": {
       "node_name": null,
       "node_nick": null,
-      "object_path": "alsa*sndrpihifiberry*playback"
+      "object_path": "alsa.*sndrpihifiberry.*playback"
     },
     "link_type": "link"
   }
@@ -159,15 +159,22 @@ Nodes can be identified by any of these properties (only one is required):
 - **node_nick**: The `node.nick` property (e.g., "USB Audio")
 - **object_path**: The `object.path` property (e.g., "/org/freedesktop/pipewire/node/45")
 
-### Wildcard Matching
+### Regex Matching
 
-All identifier fields support wildcard matching using `*`:
+All identifier fields support regular expression matching:
 
-- `"alsa_*"` matches "alsa_output.usb", "alsa_input.usb", etc.
-- `"*speaker*"` matches any node with "speaker" in the name
-- `"*.usb"` matches names ending with ".usb"
+- `"^alsa_.*"` matches names starting with "alsa_"
+- `".*speaker.*"` matches any node with "speaker" anywhere in the name
+- `".*\\.usb$"` matches names ending with ".usb"
+- `"^speakereq.x.\\.output$"` matches "speakereq2x2.output", "speakereq4x4.output", etc.
 
-Wildcards are converted to regex patterns, so `*` matches any sequence of characters.
+Common regex patterns:
+- `.` matches any single character
+- `.*` matches any sequence of characters (including empty)
+- `.+` matches one or more characters
+- `^` matches the start of the string
+- `$` matches the end of the string
+- `\\.` matches a literal dot (escape with backslash)
 
 ## Examples
 
@@ -194,7 +201,7 @@ curl -X POST http://localhost:2716/api/v1/links/apply \
   -H "Content-Type: application/json" \
   -d '{
     "source": {
-      "node_name": "alsa_output.*"
+      "node_name": "^alsa_output\\..*"
     },
     "destination": {
       "node_name": "my_audio_device"
@@ -244,8 +251,8 @@ This will automatically link speakereq output nodes to ALSA HiFiBerry playback d
 The system comes with pre-configured default link rules that can be retrieved via `/api/v1/links/default` or applied via `/api/v1/links/apply-defaults`.
 
 **Default Rule 1: SpeakerEQ to HiFiBerry**
-- **Source**: `node.name` matching `"speakereq?x?.output"` (matches speakereq2x2.output, speakereq4x4.output, etc.)
-- **Destination**: `object.path` matching `"alsa*sndrpihifiberry*playback"`
+- **Source**: `node.name` matching `"^speakereq.x.\\.output$"` (matches speakereq2x2.output, speakereq4x4.output, etc.)
+- **Destination**: `object.path` matching `"alsa.*sndrpihifiberry.*playback"`
 - **Action**: Link (create connection)
 
 This rule automatically routes the output of SpeakerEQ nodes to HiFiBerry ALSA playback devices.

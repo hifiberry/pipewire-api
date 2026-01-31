@@ -29,7 +29,7 @@ impl NodeIdentifier {
     pub fn matches(&self, props: &pw::spa::utils::dict::DictRef) -> bool {
         if let Some(ref pattern) = self.node_name {
             if let Some(name) = props.get("node.name") {
-                if wildcard_match(pattern, name) {
+                if regex_match(pattern, name) {
                     return true;
                 }
             }
@@ -37,7 +37,7 @@ impl NodeIdentifier {
         
         if let Some(ref pattern) = self.node_nick {
             if let Some(nick) = props.get("node.nick") {
-                if wildcard_match(pattern, nick) {
+                if regex_match(pattern, nick) {
                     return true;
                 }
             }
@@ -45,7 +45,7 @@ impl NodeIdentifier {
         
         if let Some(ref pattern) = self.object_path {
             if let Some(path) = props.get("object.path") {
-                if wildcard_match(pattern, path) {
+                if regex_match(pattern, path) {
                     return true;
                 }
             }
@@ -71,18 +71,51 @@ struct NodeMatch {
     name: String,
 }
 
-/// Wildcard pattern matching (supports * for any sequence of characters)
-fn wildcard_match(pattern: &str, text: &str) -> bool {
-    // Convert wildcard pattern to regex
-    let regex_pattern = pattern
-        .replace(".", "\\.")
-        .replace("*", ".*");
-    
-    if let Ok(re) = Regex::new(&format!("^{}$", regex_pattern)) {
+/// Match a string against a regex pattern
+fn regex_match(pattern: &str, text: &str) -> bool {
+    if let Ok(re) = Regex::new(pattern) {
         re.is_match(text)
     } else {
         false
     }
+}
+
+/// Information about a found node with its properties
+#[derive(Debug, Clone)]
+struct NodeWithProps {
+    id: u32,
+    node_name: Option<String>,
+    node_nick: Option<String>,
+    object_path: Option<String>,
+}
+
+/// Check if a node matches an identifier
+fn matches_identifier(node: &NodeWithProps, identifier: &NodeIdentifier) -> bool {
+    if let Some(ref pattern) = identifier.node_name {
+        if let Some(ref name) = node.node_name {
+            if regex_match(pattern, name) {
+                return true;
+            }
+        }
+    }
+    
+    if let Some(ref pattern) = identifier.node_nick {
+        if let Some(ref nick) = node.node_nick {
+            if regex_match(pattern, nick) {
+                return true;
+            }
+        }
+    }
+    
+    if let Some(ref pattern) = identifier.object_path {
+        if let Some(ref path) = node.object_path {
+            if regex_match(pattern, path) {
+                return true;
+            }
+        }
+    }
+    
+    false
 }
 
 /// Find nodes matching a node identifier
@@ -92,8 +125,9 @@ fn find_matching_nodes(
     identifier: &NodeIdentifier,
     timeout_secs: u64,
 ) -> Result<Vec<NodeMatch>> {
-    let found_nodes: Rc<RefCell<Vec<NodeMatch>>> = Rc::new(RefCell::new(Vec::new()));
-    let found_nodes_clone = found_nodes.clone();
+    // Collect ALL nodes first
+    let all_nodes: Rc<RefCell<Vec<NodeWithProps>>> = Rc::new(RefCell::new(Vec::new()));
+    let all_nodes_clone = all_nodes.clone();
     
     // Set up timeout
     let timeout_mainloop = mainloop.clone();
@@ -105,21 +139,16 @@ fn find_matching_nodes(
     let _listener = registry
         .add_listener_local()
         .global({
-            let identifier = identifier.clone();
             move |global| {
                 if global.type_ == pw::types::ObjectType::Node {
                     if let Some(props) = &global.props {
-                        if identifier.matches(props) {
-                            let name = props.get("node.name")
-                                .or_else(|| props.get("node.nick"))
-                                .or_else(|| props.get("object.path"))
-                                .unwrap_or("unknown");
-                            
-                            found_nodes_clone.borrow_mut().push(NodeMatch {
-                                id: global.id,
-                                name: name.to_string(),
-                            });
-                        }
+                        // Collect relevant properties
+                        all_nodes_clone.borrow_mut().push(NodeWithProps {
+                            id: global.id,
+                            node_name: props.get("node.name").map(|s| s.to_string()),
+                            node_nick: props.get("node.nick").map(|s| s.to_string()),
+                            object_path: props.get("object.path").map(|s| s.to_string()),
+                        });
                     }
                 }
             }
@@ -128,8 +157,61 @@ fn find_matching_nodes(
     
     mainloop.run();
     
-    let result = found_nodes.borrow().clone();
-    Ok(result)
+    // Now filter the collected nodes
+    let mut found_nodes = Vec::new();
+    for node in all_nodes.borrow().iter() {
+        // Check if this node matches the identifier
+        let matches = {
+            if let Some(ref pattern) = identifier.node_name {
+                if let Some(ref name) = node.node_name {
+                    if regex_match(pattern, name) {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else if let Some(ref pattern) = identifier.node_nick {
+                if let Some(ref nick) = node.node_nick {
+                    if regex_match(pattern, nick) {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else if let Some(ref pattern) = identifier.object_path {
+                if let Some(ref path) = node.object_path {
+                    if regex_match(pattern, path) {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        
+        if matches {
+            let name = node.node_name.as_ref()
+                .or(node.node_nick.as_ref())
+                .or(node.object_path.as_ref())
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+            
+            found_nodes.push(NodeMatch {
+                id: node.id,
+                name: name.to_string(),
+            });
+        }
+    }
+    
+    Ok(found_nodes)
 }
 
 /// Create a link between two nodes
@@ -179,14 +261,73 @@ pub fn apply_rule(
 ) -> Result<Vec<String>> {
     let mut results = Vec::new();
     
-    // Find matching source nodes
-    let sources = find_matching_nodes(registry, mainloop, &rule.source, 2)?;
+    // Collect ALL nodes in a single pass
+    let all_nodes: Rc<RefCell<Vec<NodeWithProps>>> = Rc::new(RefCell::new(Vec::new()));
+    let all_nodes_clone = all_nodes.clone();
+    
+    // Set up timeout
+    let timeout_mainloop = mainloop.clone();
+    let _timer = mainloop.loop_().add_timer(move |_| {
+        timeout_mainloop.quit();
+    });
+    _timer.update_timer(Some(std::time::Duration::from_secs(2)), None);
+    
+    let _listener = registry
+        .add_listener_local()
+        .global({
+            move |global| {
+                if global.type_ == pw::types::ObjectType::Node {
+                    if let Some(props) = &global.props {
+                        all_nodes_clone.borrow_mut().push(NodeWithProps {
+                            id: global.id,
+                            node_name: props.get("node.name").map(|s| s.to_string()),
+                            node_nick: props.get("node.nick").map(|s| s.to_string()),
+                            object_path: props.get("object.path").map(|s| s.to_string()),
+                        });
+                    }
+                }
+            }
+        })
+        .register();
+    
+    mainloop.run();
+    
+    // Now filter for source nodes
+    let mut sources = Vec::new();
+    for node in all_nodes.borrow().iter() {
+        if matches_identifier(node, &rule.source) {
+            let name = node.node_name.as_ref()
+                .or(node.node_nick.as_ref())
+                .or(node.object_path.as_ref())
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+            sources.push(NodeMatch {
+                id: node.id,
+                name: name.to_string(),
+            });
+        }
+    }
+    
     if sources.is_empty() {
         return Err(anyhow!("No source nodes found matching criteria"));
     }
     
-    // Find matching destination nodes
-    let destinations = find_matching_nodes(registry, mainloop, &rule.destination, 2)?;
+    // Filter for destination nodes
+    let mut destinations = Vec::new();
+    for node in all_nodes.borrow().iter() {
+        if matches_identifier(node, &rule.destination) {
+            let name = node.node_name.as_ref()
+                .or(node.node_nick.as_ref())
+                .or(node.object_path.as_ref())
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+            destinations.push(NodeMatch {
+                id: node.id,
+                name: name.to_string(),
+            });
+        }
+    }
+    
     if destinations.is_empty() {
         return Err(anyhow!("No destination nodes found matching criteria"));
     }
@@ -231,12 +372,25 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_wildcard_match() {
-        assert!(wildcard_match("test*", "test123"));
-        assert!(wildcard_match("*test", "mytest"));
-        assert!(wildcard_match("*test*", "myteststring"));
-        assert!(wildcard_match("test", "test"));
-        assert!(!wildcard_match("test", "test123"));
-        assert!(wildcard_match("node.*", "node.input"));
+    fn test_regex_match() {
+        // Test basic regex patterns
+        assert!(regex_match("^test.*", "test123"));
+        assert!(regex_match(".*test$", "mytest"));
+        assert!(regex_match(".*test.*", "myteststring"));
+        assert!(regex_match("^test$", "test"));
+        assert!(!regex_match("^test$", "test123"));
+        assert!(regex_match("^node\\.", "node.input"));
+        
+        // Test single character patterns
+        assert!(regex_match("^test.$", "test1"));
+        assert!(regex_match("^test.$", "testa"));
+        assert!(!regex_match("^test.$", "test12"));
+        assert!(regex_match("^speakereq.x.\\.output$", "speakereq2x2.output"));
+        assert!(regex_match("^speakereq.x.\\.output$", "speakereq4x4.output"));
+        
+        // Test complex patterns
+        assert!(regex_match("alsa.*sndrpihifiberry.*playback", "alsa:acp:sndrpihifiberry:1:playback"));
+        assert!(regex_match("alsa:.*:sndrpihifiberry:.*:playback", "alsa:acp:sndrpihifiberry:1:playback"));
+        assert!(regex_match("^test..*", "test1234"));
     }
 }

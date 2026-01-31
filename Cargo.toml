@@ -18,6 +18,10 @@ path = "src/pipewire-api.rs"
 name = "pw-param"
 path = "src/pw-param.rs"
 
+[[bin]]
+name = "pw-link"
+path = "src/pw-link.rs"
+
 [dependencies]
 pipewire = { version = "0.9", features = ["v0_3_44"] }
 libspa = "0.9"
