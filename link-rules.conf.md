@@ -177,11 +177,11 @@ To test your configuration file:
 ### Links not persisting
 
 - Verify `object.linger` is working (should be automatic)
-- Check if links appear with: `pw-link -l`
+- Check if links appear with: `link-nodes -l` or use PipeWire's native `pw-link -l`
 - Inspect link properties: `pw-dump | jq '.[] | select(.type == "PipeWire:Interface:Link")'`
 
 ## See Also
 
 - `pipewire-api(1)` - Main API server documentation
-- `pw-link(1)` - PipeWire link management tool
+- `link-nodes(1)` - PipeWire link management tool
 - PipeWire documentation: https://docs.pipewire.org/

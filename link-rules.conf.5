@@ -200,7 +200,7 @@ Check node properties: \fBnode.name\fP, \fBnode.nick\fP, \fBobject.path\fP
 Test regex patterns at https://regex101.com/
 .SS Links not persisting
 .IP \(bu 2
-Check if links appear: \fBpw-link -l\fP
+Check if links appear: \fBlink-nodes -l\fP or use PipeWire's native \fBpw-link -l\fP
 .IP \(bu 2
 Inspect link properties: \fBpw-dump | jq '.[] | select(.type == "PipeWire:Interface:Link")'\fP
 .SH FILES
@@ -212,7 +212,7 @@ System-wide link rules configuration
 User-specific link rules configuration
 .SH SEE ALSO
 .BR pipewire-api (1),
-.BR pw-link (1),
+.BR link-nodes (1),
 .BR pw-dump (1),
 .BR pipewire (1)
 .PP

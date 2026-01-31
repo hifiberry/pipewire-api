@@ -7,7 +7,7 @@ A REST API server for controlling PipeWire audio parameters and a command-line t
 This project provides:
 - **pipewire-api**: REST API server for controlling PipeWire audio processing
 - **pw-param**: Command-line tool for reading and writing PipeWire parameters
-- **pw-link**: Command-line tool for managing PipeWire links
+- **link-nodes**: Command-line tool for managing PipeWire links
 
 ## Features
 
@@ -40,7 +40,7 @@ sudo make install-all
 This installs:
 - `/usr/bin/pipewire-api` - REST API server
 - `/usr/bin/pw-param` - Parameter manipulation tool
-- `/usr/bin/pw-link` - Link management tool
+- `/usr/bin/link-nodes` - Link management tool
 - Man pages for both tools
 - Systemd user service
 
@@ -57,19 +57,19 @@ systemctl --user enable --now pipewire-api
 
 ```bash
 pw-param --help
-pw-link --help
+link-nodes --help
 ```
 
-#### pw-link - Link Management
+#### link-nodes - Link Management
 
 Apply default link rules (connects SpeakerEQ output to HiFiBerry playback):
 ```bash
-pw-link apply-defaults
+link-nodes apply-defaults
 ```
 
 Apply default rules with verbose output:
 ```bash
-pw-link apply-defaults --verbose
+link-nodes apply-defaults --verbose
 ```
 
 ## Debian Package

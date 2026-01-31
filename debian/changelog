@@ -1,3 +1,31 @@
+pipewire-api (1.0.5-1) stable; urgency=medium
+
+  * Renamed pw-link to link-nodes to avoid conflict with PipeWire's native pw-link tool
+
+ -- HiFiBerry <info@hifiberry.com>  Fri, 31 Jan 2026 14:00:00 +0100
+
+pipewire-api (1.0.4-1) stable; urgency=medium
+
+  * Added generic PipeWire endpoints for listing and inspecting objects
+  * New /api/v1/ls/* endpoints for nodes, devices, ports, links, etc.
+  * New /api/v1/properties/* endpoints for object property inspection
+  * Added automatic link management system with rule-based monitoring
+  * New /api/v1/links/* endpoints for link creation and management
+  * Added link-nodes command-line tool for applying link rules
+  * Link scheduler with automatic relinking at configurable intervals
+  * Configuration file support: /etc/pipewire-api/link-rules.conf
+  * User config support: ~/.config/pipewire-api/link-rules.conf
+  * Regex-based node matching for flexible link rules
+  * Link persistence using object.linger property
+  * Duplicate link detection to avoid redundant connections
+  * Named links with descriptive object.name properties
+  * Comprehensive man pages: pipewire-api(1) and link-rules.conf(5)
+  * Updated API documentation with all new endpoints
+  * Moved SpeakerEQ endpoints to /api/v1/speakereq/* namespace
+  * Added --no-auto-link flag to disable automatic link management
+
+ -- HiFiBerry <info@hifiberry.com>  Sat, 31 Jan 2026 13:00:00 +0100
+
 pipewire-api (1.0.0-1) stable; urgency=medium
 
   * Initial release of pipewire-api

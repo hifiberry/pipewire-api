@@ -5,13 +5,13 @@ VERSION = $(shell cat VERSION 2>/dev/null || echo "1.0.0")
 PREFIX ?= /usr/local
 DESTDIR ?=
 
-.PHONY: all api clean install install-all install-api install-pw-param install-pw-link install-api-man deb deb-clean
+.PHONY: all api clean install install-all install-api install-pw-param install-link-nodes install-api-man deb deb-clean
 
 all: api
 
 api:
 	@echo "Building API server and tools..."
-	cargo build --release --bin pipewire-api --bin pw-param --bin pw-link
+	cargo build --release --bin pipewire-api --bin pw-param --bin link-nodes
 
 clean:
 	@echo "Cleaning Rust build artifacts..."
@@ -20,9 +20,9 @@ clean:
 	rm -rf debian/.debhelper debian/pipewire-api debian/tmp debian/files debian/*.substvars debian/*.debhelper.log debian/debhelper-build-stamp
 	rm -f debian/*.log debian/*.debhelper
 
-install: install-pw-param install-pw-link install-api-man install-api
+install: install-pw-param install-link-nodes install-api-man install-api
 
-install-all: install-pw-param install-pw-link install-api-man install-api
+install-all: install-pw-param install-link-nodes install-api-man install-api
 
 install-pw-param:
 	@echo "Installing pw-param tool..."
@@ -30,11 +30,11 @@ install-pw-param:
 	cp target/release/pw-param $(DESTDIR)$(PREFIX)/bin/
 	@echo "Installed pw-param to $(DESTDIR)$(PREFIX)/bin/pw-param"
 
-install-pw-link:
-	@echo "Installing pw-link tool..."
+install-link-nodes:
+	@echo "Installing link-nodes tool..."
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	cp target/release/pw-link $(DESTDIR)$(PREFIX)/bin/
-	@echo "Installed pw-link to $(DESTDIR)$(PREFIX)/bin/pw-link"
+	cp target/release/link-nodes $(DESTDIR)$(PREFIX)/bin/
+	@echo "Installed link-nodes to $(DESTDIR)$(PREFIX)/bin/link-nodes"
 
 install-api-man: pipewire-api.1
 	@echo "Installing API man page..."
