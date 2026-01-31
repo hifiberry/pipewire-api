@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use pw_api::{PipeWireClient, default_link_rules, apply_link_rule};
 
 #[derive(Parser, Debug)]
-#[command(name = "pw-link")]
+#[command(name = "link-nodes")]
 #[command(about = "PipeWire link management tool", long_about = None)]
 #[command(version)]
 struct Cli {
