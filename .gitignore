@@ -1,14 +1,5 @@
 Cargo.lock
 debian/.debhelper/*
-*.o
-pw-api/tests/__pycache__/*
-*_response.png
-*_response.txt
-riaa_process
-*.so
-/target/
-test_clickdetect
-test_click_energy
-test_lpc
-test/__pycache__/*
-test_riaa_clicks
+target/*
+debian/pipewire-api/*
+debian/debhelper-build-stamp
