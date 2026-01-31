@@ -24,6 +24,14 @@ struct PortInfo {
     is_output: bool,
 }
 
+/// Information about an existing link
+#[derive(Debug, Clone)]
+struct LinkInfo {
+    id: u32,
+    output_port: u32,
+    input_port: u32,
+}
+
 /// Result of applying a link rule
 #[derive(Debug, Clone)]
 pub struct LinkRuleResult {
@@ -108,12 +116,15 @@ pub fn apply_link_rule(
     let link_proxies: Rc<RefCell<Vec<pw::link::Link>>> = Rc::new(RefCell::new(Vec::new()));
     let link_proxies_clone = link_proxies.clone();
     
-    // Collect ALL nodes and ports in a single pass
+    // Collect ALL nodes, ports, and existing links in a single pass
     let all_nodes: Rc<RefCell<Vec<NodeInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let all_nodes_clone = all_nodes.clone();
     
     let all_ports: Rc<RefCell<Vec<PortInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let all_ports_clone = all_ports.clone();
+    
+    let existing_links: Rc<RefCell<Vec<LinkInfo>>> = Rc::new(RefCell::new(Vec::new()));
+    let existing_links_clone = existing_links.clone();
     
     // Set up timeout
     let timeout_mainloop = mainloop.clone();
@@ -155,6 +166,23 @@ pub fn apply_link_rule(
                                     is_output,
                                 });
                             }
+                        }
+                    }
+                } else if global.type_ == pw::types::ObjectType::Link {
+                    if let Some(props) = &global.props {
+                        let output_port = props.get("link.output.port")
+                            .and_then(|s| s.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        let input_port = props.get("link.input.port")
+                            .and_then(|s| s.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        
+                        if output_port > 0 && input_port > 0 {
+                            existing_links_clone.borrow_mut().push(LinkInfo {
+                                id: global.id,
+                                output_port,
+                                input_port,
+                            });
                         }
                     }
                 }
@@ -243,6 +271,22 @@ pub fn apply_link_rule(
                     
                     // Create links for each port pair
                     for (src_port, dst_port) in source_outputs.iter().zip(dest_inputs.iter()) {
+                        // Check if this link already exists
+                        let link_exists = existing_links.borrow().iter().any(|link| {
+                            link.output_port == src_port.id && link.input_port == dst_port.id
+                        });
+                        
+                        if link_exists {
+                            results.push(LinkRuleResult {
+                                success: true,
+                                message: format!(
+                                    "Link already exists between port {} ({}) and port {} ({})",
+                                    src_port.id, src_port.name, dst_port.id, dst_port.name
+                                ),
+                            });
+                            continue;
+                        }
+                        
                         match create_port_link(core, src_port.id, dst_port.id) {
                             Ok(link_id) => {
                                 // Store the proxy to keep it alive
