@@ -18,6 +18,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/links", get(list_links))
         .route("/api/v1/links/apply", post(apply_link_rule))
         .route("/api/v1/links/batch", post(apply_batch_rules))
+        .route("/api/v1/links/default", get(get_default_rules))
+        .route("/api/v1/links/apply-defaults", post(apply_default_rules))
         .with_state(state)
 }
 
@@ -218,6 +220,72 @@ pub async fn apply_batch_rules(
     }
 
     info!("Batch complete: {}/{} successful, {} failed", successful, total, failed);
+    Ok(Json(BatchLinkResponse {
+        total,
+        successful,
+        failed,
+        results,
+    }))
+}
+
+/// Get the default link rules
+pub async fn get_default_rules(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<Vec<LinkRule>>, ApiError> {
+    use crate::default_link_rules;
+    
+    debug!("Retrieving default link rules");
+    let rules = default_link_rules::get_default_rules();
+    Ok(Json(rules))
+}
+
+/// Apply the default link rules
+pub async fn apply_default_rules(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<BatchLinkResponse>, ApiError> {
+    use crate::default_link_rules;
+    
+    info!("Applying default link rules");
+    
+    let rules = default_link_rules::get_default_rules();
+    let client = PipeWireClient::new()
+        .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
+
+    let total = rules.len();
+    let mut successful = 0;
+    let mut failed = 0;
+    let mut results = Vec::new();
+
+    for (idx, rule) in rules.iter().enumerate() {
+        debug!("Applying default rule {}/{}", idx + 1, total);
+        
+        match apply_rule(client.registry(), client.mainloop(), rule) {
+            Ok(messages) => {
+                successful += 1;
+                let message = messages.join("; ");
+                results.push(LinkResponse {
+                    success: true,
+                    message: if message.is_empty() {
+                        format!("Default rule {} applied successfully", idx + 1)
+                    } else {
+                        format!("Default rule {}: {}", idx + 1, message)
+                    },
+                    details: None,
+                });
+            }
+            Err(e) => {
+                failed += 1;
+                error!("Failed to apply default rule {}: {}", idx + 1, e);
+                results.push(LinkResponse {
+                    success: false,
+                    message: format!("Default rule {} failed: {}", idx + 1, e),
+                    details: None,
+                });
+            }
+        }
+    }
+
+    info!("Default rules complete: {}/{} successful, {} failed", successful, total, failed);
     Ok(Json(BatchLinkResponse {
         total,
         successful,

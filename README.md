@@ -91,6 +91,8 @@ The API server provides several categories of endpoints:
 - `/api/v1/links` - List all active links
 - `/api/v1/links/apply` - Apply a single link rule
 - `/api/v1/links/batch` - Apply multiple link rules
+- `/api/v1/links/default` - Get default link rules
+- `/api/v1/links/apply-defaults` - Apply default link rules (SpeakerEQ → HiFiBerry)
 
 See [LINKS_API.md](LINKS_API.md) for detailed link management documentation.
 

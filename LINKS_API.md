@@ -52,6 +52,48 @@ Apply a single link rule.
 }
 ```
 
+### GET /api/v1/links/default
+
+Get the default link rules configured for the system.
+
+**Response:**
+```json
+[
+  {
+    "source": {
+      "node_name": "speakereq?x?.output",
+      "node_nick": null,
+      "object_path": null
+    },
+    "destination": {
+      "node_name": null,
+      "node_nick": null,
+      "object_path": "alsa*sndrpihifiberry*playback"
+    },
+    "link_type": "link"
+  }
+]
+```
+
+### POST /api/v1/links/apply-defaults
+
+Apply all default link rules.
+
+**Response:**
+```json
+{
+  "total": 1,
+  "successful": 1,
+  "failed": 0,
+  "results": [
+    {
+      "success": true,
+      "message": "Default rule 1 applied successfully"
+    }
+  ]
+}
+```
+
 ### POST /api/v1/links/batch
 
 Apply multiple link rules in sequence.
@@ -182,6 +224,31 @@ curl -X POST http://localhost:2716/api/v1/links/apply \
 ```bash
 curl http://localhost:2716/api/v1/links
 ```
+
+### Example 5: Get default link rules
+
+```bash
+curl http://localhost:2716/api/v1/links/default
+```
+
+### Example 6: Apply default link rules
+
+```bash
+curl -X POST http://localhost:2716/api/v1/links/apply-defaults
+```
+
+This will automatically link speakereq output nodes to ALSA HiFiBerry playback devices.
+
+## Default Link Rules
+
+The system comes with pre-configured default link rules that can be retrieved via `/api/v1/links/default` or applied via `/api/v1/links/apply-defaults`.
+
+**Default Rule 1: SpeakerEQ to HiFiBerry**
+- **Source**: `node.name` matching `"speakereq?x?.output"` (matches speakereq2x2.output, speakereq4x4.output, etc.)
+- **Destination**: `object.path` matching `"alsa*sndrpihifiberry*playback"`
+- **Action**: Link (create connection)
+
+This rule automatically routes the output of SpeakerEQ nodes to HiFiBerry ALSA playback devices.
 
 ## Current Limitations
 
