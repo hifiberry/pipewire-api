@@ -1,7 +1,7 @@
 pub mod pipewire_client;
 pub mod parameters;
 pub mod api_server;
-pub mod generic;
+pub mod api;
 pub mod speakereq;
 pub mod linker;
 pub mod links;

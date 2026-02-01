@@ -97,15 +97,17 @@ pub fn get_volume(id: u32) -> Result<VolumeInfo, String> {
         .output()
         .map_err(|e| format!("Failed to run wpctl get-volume: {}", e))?;
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("not found") {
-            return Err(format!("Object {} not found", id));
-        }
-        return Err(format!("wpctl get-volume failed: {}", stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    // Check for "not found" in both stdout and stderr (wpctl returns it in stdout with exit code 0)
+    if stdout.contains("not found") || stderr.contains("not found") {
+        return Err(format!("Object {} not found", id));
     }
     
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !output.status.success() {
+        return Err(format!("wpctl get-volume failed: {}", stderr));
+    }
     
     // Parse "Volume: 0.50" or "Volume: 0.50 [MUTED]"
     let volume = parse_volume_output(&stdout)?;
@@ -184,11 +186,15 @@ pub fn set_volume(id: u32, volume: f32) -> Result<f32, String> {
         .output()
         .map_err(|e| format!("Failed to run wpctl set-volume: {}", e))?;
     
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    // Check for "not found" in both stdout and stderr
+    if stdout.contains("not found") || stderr.contains("not found") {
+        return Err(format!("Object {} not found", id));
+    }
+    
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("not found") {
-            return Err(format!("Object {} not found", id));
-        }
         return Err(format!("wpctl set-volume failed: {}", stderr));
     }
     

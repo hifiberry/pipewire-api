@@ -68,8 +68,8 @@ async fn main() -> Result<()> {
         let _scheduler_handle = pw_api::link_scheduler::start_link_scheduler(state.clone());
     }
 
-    // Create router with generic, speakereq, and links endpoints
-    let app = pw_api::generic::create_router(state.clone())
+    // Create router with api, speakereq, and links endpoints
+    let app = pw_api::api::create_router(state.clone())
         .merge(pw_api::speakereq::create_router(state.clone()))
         .merge(pw_api::links::create_router(state));
 
