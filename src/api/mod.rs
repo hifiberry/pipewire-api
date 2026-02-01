@@ -95,6 +95,16 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 methods: vec!["POST"],
                 description: "Save specific volume to state file",
             },
+            EndpointInfo {
+                path: "/api/v1/defaults/sink",
+                methods: vec!["GET"],
+                description: "Get default audio sink info",
+            },
+            EndpointInfo {
+                path: "/api/v1/defaults/source",
+                methods: vec!["GET"],
+                description: "Get default audio source info",
+            },
             // Link endpoints
             EndpointInfo {
                 path: "/api/v1/links",
@@ -258,6 +268,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/volume/:id", put(volume::set_volume_by_id))
         .route("/api/v1/volume/save", post(volume::save_all_volumes))
         .route("/api/v1/volume/save/:id", post(volume::save_volume))
+        // Defaults endpoints (via wpctl)
+        .route("/api/v1/defaults/sink", get(volume::get_default_sink))
+        .route("/api/v1/defaults/source", get(volume::get_default_source))
         // Links endpoints (via pw-link)
         .route("/api/v1/links", get(links::list_links))
         .route("/api/v1/links", post(links::create_link))

@@ -201,6 +201,82 @@ pub fn set_volume(id: u32, volume: f32) -> Result<f32, String> {
     Ok(volume)
 }
 
+/// Information about a default audio node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefaultNodeInfo {
+    pub id: u32,
+    pub name: String,
+    pub description: Option<String>,
+    pub media_class: Option<String>,
+}
+
+/// Get default audio sink information
+pub fn get_default_sink() -> Result<DefaultNodeInfo, String> {
+    get_default_node("@DEFAULT_AUDIO_SINK@")
+}
+
+/// Get default audio source information
+pub fn get_default_source() -> Result<DefaultNodeInfo, String> {
+    get_default_node("@DEFAULT_AUDIO_SOURCE@")
+}
+
+/// Get information about a default node using wpctl inspect
+fn get_default_node(selector: &str) -> Result<DefaultNodeInfo, String> {
+    let output = Command::new("wpctl")
+        .args(["inspect", selector])
+        .output()
+        .map_err(|e| format!("Failed to run wpctl inspect: {}", e))?;
+    
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("wpctl inspect failed: {}", stderr));
+    }
+    
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_wpctl_inspect(&stdout)
+}
+
+/// Parse wpctl inspect output to extract node information
+fn parse_wpctl_inspect(output: &str) -> Result<DefaultNodeInfo, String> {
+    let mut id: Option<u32> = None;
+    let mut name: Option<String> = None;
+    let mut description: Option<String> = None;
+    let mut media_class: Option<String> = None;
+    
+    for line in output.lines() {
+        let line = line.trim();
+        
+        // First line has the id: "id 38, type PipeWire:Interface:Node"
+        if line.starts_with("id ") {
+            if let Some(id_str) = line.split(',').next() {
+                if let Some(num_str) = id_str.strip_prefix("id ") {
+                    id = num_str.trim().parse().ok();
+                }
+            }
+        }
+        
+        // Parse key = "value" lines
+        if let Some((key, value)) = line.split_once(" = ") {
+            let key = key.trim().trim_start_matches("* ");
+            let value = value.trim().trim_matches('"');
+            
+            match key {
+                "node.name" => name = Some(value.to_string()),
+                "node.description" => description = Some(value.to_string()),
+                "media.class" => media_class = Some(value.to_string()),
+                _ => {}
+            }
+        }
+    }
+    
+    Ok(DefaultNodeInfo {
+        id: id.ok_or("Could not find node id")?,
+        name: name.ok_or("Could not find node.name")?,
+        description,
+        media_class,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,5 +326,83 @@ Audio
         assert!((parse_volume_output("Volume: 0.50").unwrap() - 0.50).abs() < 0.01);
         assert!((parse_volume_output("Volume: 1.00 [MUTED]").unwrap() - 1.0).abs() < 0.01);
         assert!((parse_volume_output("Volume: 0.75\n").unwrap() - 0.75).abs() < 0.01);
+    }
+    
+    #[test]
+    fn test_parse_wpctl_inspect_full() {
+        let output = r#"id 38, type PipeWire:Interface:Node
+    adapt.follower.spa-node = ""
+    audio.channels = "2"
+    audio.position = "[ FL FR ]"
+  * client.id = "35"
+    clock.quantum-limit = "8192"
+  * factory.id = "18"
+    library.name = "audioconvert/libspa-audioconvert"
+  * media.class = "Audio/Sink"
+    media.name = "EQ + Balance Sink"
+    node.autoconnect = "true"
+  * node.description = "EQ + Balance Sink"
+    node.driver-id = "81"
+    node.group = "filter-chain-1599212-28"
+    node.link-group = "filter-chain-1599212-28"
+  * node.name = "effect_input.proc"
+    node.virtual = "true"
+"#;
+        
+        let info = parse_wpctl_inspect(output).unwrap();
+        assert_eq!(info.id, 38);
+        assert_eq!(info.name, "effect_input.proc");
+        assert_eq!(info.description, Some("EQ + Balance Sink".to_string()));
+        assert_eq!(info.media_class, Some("Audio/Sink".to_string()));
+    }
+    
+    #[test]
+    fn test_parse_wpctl_inspect_minimal() {
+        let output = r#"id 81, type PipeWire:Interface:Node
+  * node.name = "alsa_output.platform-hdmi"
+"#;
+        
+        let info = parse_wpctl_inspect(output).unwrap();
+        assert_eq!(info.id, 81);
+        assert_eq!(info.name, "alsa_output.platform-hdmi");
+        assert_eq!(info.description, None);
+        assert_eq!(info.media_class, None);
+    }
+    
+    #[test]
+    fn test_parse_wpctl_inspect_with_description_and_class() {
+        let output = r#"id 42, type PipeWire:Interface:Node
+  * media.class = "Audio/Source/Virtual"
+  * node.description = "RIAA Filter Input"
+  * node.name = "riaa"
+"#;
+        
+        let info = parse_wpctl_inspect(output).unwrap();
+        assert_eq!(info.id, 42);
+        assert_eq!(info.name, "riaa");
+        assert_eq!(info.description, Some("RIAA Filter Input".to_string()));
+        assert_eq!(info.media_class, Some("Audio/Source/Virtual".to_string()));
+    }
+    
+    #[test]
+    fn test_parse_wpctl_inspect_missing_name() {
+        let output = r#"id 99, type PipeWire:Interface:Node
+  * media.class = "Audio/Sink"
+"#;
+        
+        let result = parse_wpctl_inspect(output);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("node.name"));
+    }
+    
+    #[test]
+    fn test_parse_wpctl_inspect_missing_id() {
+        let output = r#"type PipeWire:Interface:Node
+  * node.name = "test_node"
+"#;
+        
+        let result = parse_wpctl_inspect(output);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("node id"));
     }
 }

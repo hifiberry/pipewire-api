@@ -124,3 +124,42 @@ pub async fn save_volume(
         "message": "Volume state saved"
     })))
 }
+
+/// Get information about the default audio sink
+pub async fn get_default_sink(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<DefaultNodeInfo>, ApiError> {
+    let info = crate::wpctl::get_default_sink()
+        .map_err(|e| ApiError::Internal(format!("Failed to get default sink: {}", e)))?;
+    
+    Ok(Json(DefaultNodeInfo {
+        id: info.id,
+        name: info.name,
+        description: info.description,
+        media_class: info.media_class,
+    }))
+}
+
+/// Get information about the default audio source
+pub async fn get_default_source(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<DefaultNodeInfo>, ApiError> {
+    let info = crate::wpctl::get_default_source()
+        .map_err(|e| ApiError::Internal(format!("Failed to get default source: {}", e)))?;
+    
+    Ok(Json(DefaultNodeInfo {
+        id: info.id,
+        name: info.name,
+        description: info.description,
+        media_class: info.media_class,
+    }))
+}
+
+/// Response for default node information
+#[derive(Debug, serde::Serialize)]
+pub struct DefaultNodeInfo {
+    pub id: u32,
+    pub name: String,
+    pub description: Option<String>,
+    pub media_class: Option<String>,
+}
