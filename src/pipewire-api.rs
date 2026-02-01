@@ -36,12 +36,12 @@ async fn main() -> Result<()> {
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
 
-    // Load and apply device volume rules on startup
-    let volume_rules = pw_api::config::load_all_device_volume_rules();
+    // Load and apply volume rules on startup
+    let volume_rules = pw_api::config::load_all_volume_rules();
     if !volume_rules.is_empty() {
-        tracing::info!("Applying {} device volume rule(s)", volume_rules.len());
-        if let Err(e) = pw_api::device_volumes::apply_device_volumes(volume_rules) {
-            tracing::error!("Failed to apply device volumes: {}", e);
+        tracing::info!("Applying {} volume rule(s)", volume_rules.len());
+        if let Err(e) = pw_api::volume::apply_volume_rules(volume_rules) {
+            tracing::error!("Failed to apply volume rules: {}", e);
         }
     }
 

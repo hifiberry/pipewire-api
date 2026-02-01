@@ -1,3 +1,25 @@
+pipewire-api (1.0.9-1) stable; urgency=medium
+
+  * New unified volume API supporting both devices and sinks
+  * GET /api/v1/volume endpoint to list all volumes (devices and sinks)
+  * GET /api/v1/volume/:id to get volume for specific device or sink
+  * PUT /api/v1/volume/:id to set volume for device or sink
+  * POST /api/v1/volume/save to save all current volumes to state file
+  * POST /api/v1/volume/save/:id to save specific volume to state file
+  * Automatic detection of object type (device vs sink)
+  * Devices use Route parameters with channelVolumes
+  * Sinks use Props parameters with volume property
+  * Added object_type field to distinguish "device" from "sink"
+  * Renamed device-volumes.conf to volume.conf
+  * Renamed DeviceVolumeRule to VolumeRule with 'object' field
+  * Volume config now works for both devices and sinks at startup
+  * Volume startup configuration uses unified set_volume_by_id API
+  * Added use_state_file option to volume rules
+  * State file at ~/.state/pipewire-api/volume.state for persistent volumes
+  * State file volumes take precedence over config when use_state_file is true
+
+ -- HiFiBerry <info@hifiberry.com>  Sat, 01 Feb 2026 10:00:00 +0100
+
 pipewire-api (1.0.8-1) stable; urgency=medium
 
   * New API endpoint: GET /api/v1/devices to list all devices with volume info

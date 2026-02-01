@@ -40,19 +40,19 @@ install-config:
 	@echo "Installing default config files..."
 	mkdir -p $(DESTDIR)/etc/pipewire-api
 	cp link-rules.conf $(DESTDIR)/etc/pipewire-api/
-	cp device-volumes.conf $(DESTDIR)/etc/pipewire-api/
+	cp volume.conf $(DESTDIR)/etc/pipewire-api/
 	@echo "Installed default config to $(DESTDIR)/etc/pipewire-api/link-rules.conf"
-	@echo "Installed default config to $(DESTDIR)/etc/pipewire-api/device-volumes.conf"
+	@echo "Installed default config to $(DESTDIR)/etc/pipewire-api/volume.conf"
 
 install-api-man: pipewire-api.1
 	@echo "Installing man pages..."
 	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
 	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man5
 	cp pipewire-api.1 $(DESTDIR)$(PREFIX)/share/man/man1/
-	cp device-volumes.conf.5 $(DESTDIR)$(PREFIX)/share/man/man5/
+	cp volume.conf.5 $(DESTDIR)$(PREFIX)/share/man/man5/
 	@if command -v gzip >/dev/null 2>&1; then \
 		gzip -f $(DESTDIR)$(PREFIX)/share/man/man1/pipewire-api.1; \
-		gzip -f $(DESTDIR)$(PREFIX)/share/man/man5/device-volumes.conf.5; \
+		gzip -f $(DESTDIR)$(PREFIX)/share/man/man5/volume.conf.5; \
 		echo "Installed man pages to $(DESTDIR)$(PREFIX)/share/man/"; \
 	else \
 		echo "Installed man pages to $(DESTDIR)$(PREFIX)/share/man/"; \

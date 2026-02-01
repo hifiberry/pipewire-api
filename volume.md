@@ -40,14 +40,28 @@ The configuration file is a JSON array of volume rules:
 When `use_state_file: true` is set in a rule, the server checks for saved volumes in:
 - `~/.state/pipewire-api/volume.state`
 
-If a volume is found for a matching object in the state file, it takes precedence over the volume in the configuration file. This allows volumes to persist across restarts after being changed via the API.
+The state file uses object names (e.g., `device.name` or `node.name`) as keys to identify objects. If a volume is found for a matching object in the state file, it takes precedence over the volume in the configuration file. This allows volumes to persist across restarts after being changed via the API.
+
+**State file format:**
+```json
+[
+  {
+    "name": "alsa_card.platform-soc_107c000000_sound",
+    "volume": 0.75
+  },
+  {
+    "name": "speakereq2x2",
+    "volume": 0.85
+  }
+]
+```
 
 **Saving volumes:**
 ```bash
 # Save all current volumes
 curl -X POST http://localhost:2716/api/v1/volume/save
 
-# Save specific volume
+# Save specific volume (by ID, saves using name as key)
 curl -X POST http://localhost:2716/api/v1/volume/save/56
 ```
 
