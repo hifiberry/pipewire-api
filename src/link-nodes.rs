@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use pw_api::{PipeWireClient, default_link_rules, apply_link_rule};
+use pw_api::{default_link_rules, apply_link_rule};
 
 #[derive(Parser, Debug)]
 #[command(name = "link-nodes")]
@@ -41,13 +41,6 @@ fn apply_default_rules(verbose: bool) -> Result<()> {
         println!("Loaded {} default rule(s)", rules.len());
     }
 
-    // Create PipeWire client
-    let client = PipeWireClient::new()?;
-    
-    if verbose {
-        println!("Connected to PipeWire");
-    }
-
     let mut successful = 0;
     let mut failed = 0;
 
@@ -76,7 +69,7 @@ fn apply_default_rules(verbose: bool) -> Result<()> {
             println!("  Action: {:?}", rule.link_type);
         }
 
-        match apply_link_rule(client.registry(), client.core(), client.mainloop(), rule) {
+        match apply_link_rule(rule) {
             Ok(results) => {
                 let rule_success = results.iter().all(|r| r.success);
                 if rule_success {
