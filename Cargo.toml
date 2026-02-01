@@ -14,18 +14,6 @@ path = "src/lib.rs"
 name = "pipewire-api"
 path = "src/pipewire-api.rs"
 
-[[bin]]
-name = "pw-param"
-path = "src/pw-param.rs"
-
-[[bin]]
-name = "pw-props"
-path = "src/pw-props.rs"
-
-[[bin]]
-name = "pw-route"
-path = "src/pw-route.rs"
-
 [dependencies]
 pipewire = { version = "0.9", features = ["v0_3_44"] }
 libspa = "0.9"
