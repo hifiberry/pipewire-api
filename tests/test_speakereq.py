@@ -794,6 +794,16 @@ def test_set_default(speakereq_server):
     assert status["crossbar"]["input_1_to_output_1"] == 1.0, "Crossbar [1,1] not 1.0"
 
 
+def test_save(speakereq_server):
+    """Test that the save endpoint returns a successful response."""
+    response = requests.post(f"{speakereq_server}/api/v1/module/speakereq/save")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data.get("status") == "ok"
+    assert "message" in data
+
+
 if __name__ == "__main__":
     # Allow running tests directly
     pytest.main([__file__, "-v"])

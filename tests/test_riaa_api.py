@@ -255,3 +255,15 @@ def test_set_notch_config(api_server):
     assert result["enabled"] == True
     assert result["frequency_hz"] == 300.0
     assert result["q_factor"] == 30.0
+
+
+def test_save(api_server):
+    """Test that the save endpoint returns a successful response."""
+    find_riaa_node(api_server)  # Ensure node exists
+    
+    response = requests.post(f"{api_server}/api/v1/module/riaa/save")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data.get("status") == "ok"
+    assert "message" in data
