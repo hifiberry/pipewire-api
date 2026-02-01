@@ -37,47 +37,15 @@ Returns all PipeWire objects (nodes, devices, ports, links, clients, modules, fa
 }
 ```
 
-#### List Nodes
-```
-GET /ls/nodes
-```
-Returns all PipeWire nodes (audio/video processing elements).
-
-#### List Devices
-```
-GET /ls/devices
-```
-Returns all PipeWire devices (audio/video hardware).
-
-#### List Ports
-```
-GET /ls/ports
-```
-Returns all PipeWire ports (connection endpoints).
+**Note:** Filter results by checking the `type` field in the response. Available types include: `node`, `device`, `port`, `link`, `client`, `module`, `factory`.
 
 #### List Links
 ```
 GET /ls/links
 ```
-Returns all PipeWire links (active connections).
+```
 
-#### List Clients
-```
-GET /ls/clients
-```
-Returns all PipeWire clients (applications).
-
-#### List Modules
-```
-GET /ls/modules
-```
-Returns all PipeWire modules.
-
-#### List Factories
-```
-GET /ls/factories
-```
-Returns all PipeWire object factories.
+**Note:** Filter results client-side by checking the `type` field in the response. Available types include: `node`, `device`, `port`, `link`, `client`, `module`, `factory`.
 
 #### Get All Properties
 ```

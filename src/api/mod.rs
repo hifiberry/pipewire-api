@@ -28,13 +28,6 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         // Listing endpoints
         .route("/api/v1/ls", get(listing::list_all))
-        .route("/api/v1/ls/nodes", get(listing::list_nodes))
-        .route("/api/v1/ls/devices", get(listing::list_devices))
-        .route("/api/v1/ls/ports", get(listing::list_ports))
-        .route("/api/v1/ls/modules", get(listing::list_modules))
-        .route("/api/v1/ls/factories", get(listing::list_factories))
-        .route("/api/v1/ls/clients", get(listing::list_clients))
-        .route("/api/v1/ls/links", get(listing::list_links))
         // Object by ID endpoint
         .route("/api/v1/objects/:id", get(listing::get_object_by_id))
         // Cache refresh endpoint
