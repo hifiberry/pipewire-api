@@ -40,6 +40,39 @@ This project provides a REST API server and command-line tools for controlling P
 - Verify systemd service functionality
 - Run the server with `RUST_LOG=info cargo run` to see debug output
 
+### Running Python API Tests
+
+The project includes comprehensive Python-based API tests in the `tests/` directory.
+
+**Prerequisites:**
+```bash
+# Create a virtual environment and install test dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-test.txt
+```
+
+**Running tests:**
+```bash
+# Run all tests
+python3 -m pytest tests/ -v
+
+# Run a specific test file
+python3 -m pytest tests/test_speakereq.py -v
+
+# Run tests with shorter output
+python3 -m pytest tests/ -q
+```
+
+The test framework automatically:
+- Builds the release binary (`cargo build --release`)
+- Creates a temporary HOME directory with mock PipeWire tools
+- Starts the API server on a random available port
+- Runs all tests against that server
+- Cleans up after completion
+
+**Note:** Tests use session-scoped fixtures, so all tests share the same server instance for efficiency.
+
 ## Development
 
 - Use `RUST_LOG=info cargo run` to run the API server with logging enabled
