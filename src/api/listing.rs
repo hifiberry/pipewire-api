@@ -12,12 +12,36 @@ use crate::api_server::{ApiError, AppState};
 use crate::pwcli;
 use super::types::*;
 
+/// Convert NodeTypeClassification to string for API response
+fn classification_to_string(classification: pwcli::NodeTypeClassification) -> String {
+    match classification {
+        pwcli::NodeTypeClassification::Audio => "Audio".to_string(),
+        pwcli::NodeTypeClassification::Midi => "Midi".to_string(),
+        pwcli::NodeTypeClassification::Video => "Video".to_string(),
+        pwcli::NodeTypeClassification::Link => "Link".to_string(),
+        pwcli::NodeTypeClassification::Other => "Other".to_string(),
+        pwcli::NodeTypeClassification::Unknown => "Unknown".to_string(),
+    }
+}
+
 /// Convert a pwcli::PwObject to our API PipeWireObject
 fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
+    // First check media.class
+    let mut classification = pwcli::classify_media_class(obj.media_class());
+    
+    // If Unknown, check object_type for links (they don't have media.class)
+    if classification == pwcli::NodeTypeClassification::Unknown {
+        let simplified_type = pwcli::simplify_type(&obj.object_type);
+        if simplified_type == "link" {
+            classification = pwcli::NodeTypeClassification::Link;
+        }
+    }
+    
     PipeWireObject {
         id: obj.id,
         name: obj.display_name(),
         object_type: pwcli::simplify_type(&obj.object_type).to_string(),
+        media_class: Some(classification_to_string(classification)),
     }
 }
 

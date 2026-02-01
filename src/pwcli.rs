@@ -7,9 +7,80 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 // Simple cache for node name <-> ID lookups to avoid repeated pw-cli calls
 static NODE_CACHE: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+
+/// Classification of PipeWire node types based on media.class
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NodeTypeClassification {
+    /// Audio node (sink, source, filter, stream)
+    Audio,
+    /// MIDI node
+    Midi,
+    /// Video node
+    Video,
+    /// Link object
+    Link,
+    /// Other known type (not audio/midi/video/link)
+    Other,
+    /// Unknown - media.class not recognized or missing, needs heuristics
+    Unknown,
+}
+
+/// Classify a media.class string to determine the node type
+/// 
+/// Returns the detected node type based on media.class patterns:
+/// - `Audio`: Contains "audio" or "stream"
+/// - `Midi`: Contains "midi"
+/// - `Video`: Contains "video"
+/// - `Link`: Is exactly "link" or contains "link/"
+/// - `Other`: Has a media.class but doesn't match known patterns
+/// - `Unknown`: No media.class provided, caller should use heuristics
+/// 
+/// # Examples
+/// ```
+/// use pw_api::pwcli::{classify_media_class, NodeTypeClassification};
+/// 
+/// assert_eq!(classify_media_class(Some("Audio/Sink")), NodeTypeClassification::Audio);
+/// assert_eq!(classify_media_class(Some("Stream/Output/Audio")), NodeTypeClassification::Audio);
+/// assert_eq!(classify_media_class(Some("Midi/Bridge")), NodeTypeClassification::Midi);
+/// assert_eq!(classify_media_class(Some("Video/Source")), NodeTypeClassification::Video);
+/// assert_eq!(classify_media_class(None), NodeTypeClassification::Unknown);
+/// ```
+pub fn classify_media_class(media_class: Option<&str>) -> NodeTypeClassification {
+    match media_class {
+        Some(class) => {
+            let class_lower = class.to_lowercase();
+            
+            // Check for audio (includes Stream/Output/Audio patterns)
+            if class_lower.contains("audio") || class_lower.contains("stream") {
+                return NodeTypeClassification::Audio;
+            }
+            
+            // Check for MIDI
+            if class_lower.contains("midi") {
+                return NodeTypeClassification::Midi;
+            }
+            
+            // Check for video
+            if class_lower.contains("video") {
+                return NodeTypeClassification::Video;
+            }
+            
+            // Check for link
+            if class_lower == "link" || class_lower.starts_with("link/") {
+                return NodeTypeClassification::Link;
+            }
+            
+            // Has media.class but doesn't match known patterns
+            NodeTypeClassification::Other
+        }
+        // No media.class at all - needs heuristics
+        None => NodeTypeClassification::Unknown,
+    }
+}
 
 /// Initialize or refresh the node name cache
 fn refresh_node_cache() -> Result<(), String> {
@@ -29,7 +100,6 @@ fn refresh_node_cache() -> Result<(), String> {
     *cache_mutex.lock().unwrap() = cache;
     Ok(())
 }
-use serde::{Deserialize, Serialize};
 
 /// A PipeWire object as returned by pw-cli ls
 #[derive(Debug, Clone, Serialize, Deserialize)]

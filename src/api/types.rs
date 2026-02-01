@@ -20,6 +20,9 @@ pub struct PipeWireObject {
     pub name: String,
     #[serde(rename = "type")]
     pub object_type: String,
+    /// Media class classification (Audio, Midi, Video, Link, Other, Unknown)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_class: Option<String>,
 }
 
 /// Response for list endpoints

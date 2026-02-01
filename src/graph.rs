@@ -25,22 +25,26 @@ struct FilterChain {
     output_id: u32,
 }
 
-/// Check if a node is an audio node (not MIDI or video)
+/// Check if a node is an audio node (not MIDI, video, or link)
+/// Uses classify_media_class for primary classification, then applies
+/// additional heuristics for "Unknown" cases.
 fn is_audio_node(obj: &pwcli::PwObject) -> bool {
-    // Check media.class property
-    if let Some(media_class) = obj.properties.get("media.class") {
-        let class_lower = media_class.to_lowercase();
-        // Include audio-related classes
-        if class_lower.contains("audio") || class_lower.contains("stream") {
-            return true;
-        }
-        // Exclude MIDI and video
-        if class_lower.contains("midi") || class_lower.contains("video") {
-            return false;
+    // First, check media.class using the central classification function
+    let classification = pwcli::classify_media_class(obj.media_class());
+    
+    match classification {
+        pwcli::NodeTypeClassification::Audio => return true,
+        pwcli::NodeTypeClassification::Midi => return false,
+        pwcli::NodeTypeClassification::Video => return false,
+        pwcli::NodeTypeClassification::Link => return false,
+        pwcli::NodeTypeClassification::Other => return false,
+        pwcli::NodeTypeClassification::Unknown => {
+            // Apply additional heuristics for unknown cases
         }
     }
     
-    // Check node.name for known audio patterns
+    // Additional heuristics for "Unknown" cases (no media.class)
+    // Check node.name for known patterns
     if let Some(name) = obj.properties.get("node.name") {
         let name_lower = name.to_lowercase();
         // Skip MIDI nodes
