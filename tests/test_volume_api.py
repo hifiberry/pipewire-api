@@ -528,6 +528,156 @@ class TestVolumeRoundTrip:
             )
 
 
+class TestDefaultSink:
+    """Tests for GET /api/v1/defaults/sink"""
+    
+    def test_default_sink_returns_200(self, test_env):
+        """Test that /api/v1/defaults/sink returns 200 OK"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        assert response.status_code == 200
+    
+    def test_default_sink_returns_json(self, test_env):
+        """Test that /api/v1/defaults/sink returns valid JSON"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        data = response.json()
+        assert isinstance(data, dict)
+    
+    def test_default_sink_has_required_fields(self, test_env):
+        """Test that response has required fields"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        data = response.json()
+        
+        assert "id" in data, "Response missing 'id' field"
+        assert "name" in data, "Response missing 'name' field"
+        assert isinstance(data["id"], int), f"id should be int, got {type(data['id'])}"
+        assert isinstance(data["name"], str), f"name should be str, got {type(data['name'])}"
+    
+    def test_default_sink_has_optional_fields(self, test_env):
+        """Test that response has optional fields (may be null)"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        data = response.json()
+        
+        # These fields should exist but may be null
+        assert "description" in data, "Response missing 'description' field"
+        assert "media_class" in data, "Response missing 'media_class' field"
+    
+    def test_default_sink_id_is_positive(self, test_env):
+        """Test that the sink ID is positive"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        data = response.json()
+        assert data["id"] > 0, "Sink ID should be positive"
+    
+    def test_default_sink_name_not_empty(self, test_env):
+        """Test that the sink name is not empty"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        data = response.json()
+        assert len(data["name"]) > 0, "Sink name should not be empty"
+    
+    @pytest.mark.local_only
+    def test_default_sink_matches_wpctl(self, test_env):
+        """Test that API result matches wpctl inspect @DEFAULT_AUDIO_SINK@"""
+        # Get from API
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/sink")
+        api_data = response.json()
+        
+        # Get from wpctl
+        result = subprocess.run(
+            ["wpctl", "inspect", "@DEFAULT_AUDIO_SINK@"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        assert result.returncode == 0, "wpctl inspect failed"
+        
+        # Parse wpctl output for id and node.name
+        id_match = re.search(r'^id (\d+),', result.stdout)
+        name_match = re.search(r'node\.name = "([^"]+)"', result.stdout)
+        
+        assert id_match, "Could not find id in wpctl output"
+        assert name_match, "Could not find node.name in wpctl output"
+        
+        wpctl_id = int(id_match.group(1))
+        wpctl_name = name_match.group(1)
+        
+        assert api_data["id"] == wpctl_id, f"ID mismatch: API={api_data['id']}, wpctl={wpctl_id}"
+        assert api_data["name"] == wpctl_name, f"Name mismatch: API={api_data['name']}, wpctl={wpctl_name}"
+
+
+class TestDefaultSource:
+    """Tests for GET /api/v1/defaults/source"""
+    
+    def test_default_source_returns_200(self, test_env):
+        """Test that /api/v1/defaults/source returns 200 OK"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        assert response.status_code == 200
+    
+    def test_default_source_returns_json(self, test_env):
+        """Test that /api/v1/defaults/source returns valid JSON"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        data = response.json()
+        assert isinstance(data, dict)
+    
+    def test_default_source_has_required_fields(self, test_env):
+        """Test that response has required fields"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        data = response.json()
+        
+        assert "id" in data, "Response missing 'id' field"
+        assert "name" in data, "Response missing 'name' field"
+        assert isinstance(data["id"], int), f"id should be int, got {type(data['id'])}"
+        assert isinstance(data["name"], str), f"name should be str, got {type(data['name'])}"
+    
+    def test_default_source_has_optional_fields(self, test_env):
+        """Test that response has optional fields (may be null)"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        data = response.json()
+        
+        # These fields should exist but may be null
+        assert "description" in data, "Response missing 'description' field"
+        assert "media_class" in data, "Response missing 'media_class' field"
+    
+    def test_default_source_id_is_positive(self, test_env):
+        """Test that the source ID is positive"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        data = response.json()
+        assert data["id"] > 0, "Source ID should be positive"
+    
+    def test_default_source_name_not_empty(self, test_env):
+        """Test that the source name is not empty"""
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        data = response.json()
+        assert len(data["name"]) > 0, "Source name should not be empty"
+    
+    @pytest.mark.local_only
+    def test_default_source_matches_wpctl(self, test_env):
+        """Test that API result matches wpctl inspect @DEFAULT_AUDIO_SOURCE@"""
+        # Get from API
+        response = requests.get(f"{test_env.base_url}/api/v1/defaults/source")
+        api_data = response.json()
+        
+        # Get from wpctl
+        result = subprocess.run(
+            ["wpctl", "inspect", "@DEFAULT_AUDIO_SOURCE@"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        assert result.returncode == 0, "wpctl inspect failed"
+        
+        # Parse wpctl output for id and node.name
+        id_match = re.search(r'^id (\d+),', result.stdout)
+        name_match = re.search(r'node\.name = "([^"]+)"', result.stdout)
+        
+        assert id_match, "Could not find id in wpctl output"
+        assert name_match, "Could not find node.name in wpctl output"
+        
+        wpctl_id = int(id_match.group(1))
+        wpctl_name = name_match.group(1)
+        
+        assert api_data["id"] == wpctl_id, f"ID mismatch: API={api_data['id']}, wpctl={wpctl_id}"
+        assert api_data["name"] == wpctl_name, f"Name mismatch: API={api_data['name']}, wpctl={wpctl_name}"
+
+
 if __name__ == "__main__":
     # Allow running tests directly
     pytest.main([__file__, "-v"])
