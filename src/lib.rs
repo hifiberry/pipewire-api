@@ -1,4 +1,3 @@
-pub mod pipewire_client;
 pub mod parameters;
 pub mod api_server;
 pub mod api;
@@ -10,7 +9,6 @@ pub mod default_link_rules;
 pub mod link_manager_cli;
 pub mod link_scheduler;
 pub mod config;
-pub mod pod_parser;
 pub mod volume;
 pub mod wpctl;
 pub mod pwcli;
