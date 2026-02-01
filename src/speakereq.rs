@@ -540,6 +540,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/module/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
         .route("/api/module/speakereq/enable", get(get_enable).put(set_enable))
         .route("/api/module/speakereq/refresh", post(refresh_cache))
+        .route("/api/module/speakereq/default", post(set_default))
         .with_state(state)
 }
 
@@ -550,5 +551,55 @@ pub async fn refresh_cache(
     state.refresh_params_cache()?;
     Ok(Json(serde_json::json!({
         "message": "Parameter cache refreshed"
+    })))
+}
+
+/// Set all parameters to default values
+pub async fn set_default(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use std::collections::HashMap;
+    let mut params = HashMap::new();
+    
+    // Set all gains to 0dB
+    params.insert("master_gain_db".to_string(), ParameterValue::Float(0.0));
+    params.insert("input_0_gain_db".to_string(), ParameterValue::Float(0.0));
+    params.insert("input_1_gain_db".to_string(), ParameterValue::Float(0.0));
+    params.insert("output_0_gain_db".to_string(), ParameterValue::Float(0.0));
+    params.insert("output_1_gain_db".to_string(), ParameterValue::Float(0.0));
+    
+    // Set crossbar matrix to identity (1 on diagonal, 0 elsewhere)
+    params.insert("xbar_0_to_0".to_string(), ParameterValue::Float(1.0));
+    params.insert("xbar_0_to_1".to_string(), ParameterValue::Float(0.0));
+    params.insert("xbar_1_to_0".to_string(), ParameterValue::Float(0.0));
+    params.insert("xbar_1_to_1".to_string(), ParameterValue::Float(1.0));
+    
+    // Set all EQ bands to "off" (type 0) for all blocks
+    let blocks = ["input_0", "input_1", "output_0", "output_1"];
+    for block in &blocks {
+        for band in 1..=20 {
+            let type_key = format!("{}_eq_{}_type", block, band);
+            let freq_key = format!("{}_eq_{}_f", block, band);
+            let q_key = format!("{}_eq_{}_q", block, band);
+            let gain_key = format!("{}_eq_{}_gain", block, band);
+            let enabled_key = format!("{}_eq_{}_enabled", block, band);
+            
+            params.insert(type_key, ParameterValue::Int(0)); // off
+            params.insert(freq_key, ParameterValue::Float(1000.0));
+            params.insert(q_key, ParameterValue::Float(1.0));
+            params.insert(gain_key, ParameterValue::Float(0.0));
+            params.insert(enabled_key, ParameterValue::Bool(true));
+        }
+    }
+    
+    // Set enable to true
+    params.insert("Enable".to_string(), ParameterValue::Bool(true));
+    
+    // Apply all parameters in batch
+    state.set_parameters(params)?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "All parameters set to default values"
     })))
 }

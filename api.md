@@ -1039,6 +1039,26 @@ Force refresh of parameter cache. Use this if external tools (e.g., direct pw-cl
 
 **Note:** The API caches EQ and other parameters to improve performance. This cache is automatically cleared when setting parameters via the API. Only use this endpoint if you've modified parameters using external tools.
 
+#### Set Default Configuration
+```
+POST /module/speakereq/default
+```
+Reset all parameters to default values:
+- All gains set to 0dB (master, input, output)
+- Crossbar matrix set to identity (1 on diagonal, 0 elsewhere)
+- All EQ filters set to "off" type
+- Enable status set to true
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "All parameters set to default values"
+}
+```
+
+**Note:** This is useful for initializing the plugin to a known state or resetting after experiments.
+
 #### Get License Status
 ```
 GET /module/speakereq/license

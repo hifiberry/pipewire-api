@@ -643,6 +643,70 @@ def test_refresh_cache_after_external_change(api_server):
     ], check=True, capture_output=True)
 
 
+def test_set_default(api_server):
+    """Test setting all parameters to default values"""
+    # First, set some non-default values
+    
+    # Set master gain to non-zero
+    requests.put(
+        f"{api_server}/api/module/speakereq/gain/master",
+        json={"gain": -5.0}
+    )
+    
+    # Set an EQ band to something other than off
+    requests.put(
+        f"{api_server}/api/module/speakereq/eq/input_0/1",
+        json={
+            "type": "peaking",
+            "frequency": 1000.0,
+            "q": 2.0,
+            "gain": 6.0,
+            "enabled": True
+        }
+    )
+    
+    # Set enable to false
+    requests.put(
+        f"{api_server}/api/module/speakereq/enable",
+        json={"enabled": False}
+    )
+    
+    # Now call the default endpoint
+    response = requests.post(f"{api_server}/api/module/speakereq/default")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "message" in data
+    
+    # Verify master gain is 0dB
+    response = requests.get(f"{api_server}/api/module/speakereq/gain/master")
+    assert response.status_code == 200
+    assert response.json()["gain"] == 0.0
+    
+    # Verify EQ band is set to off
+    response = requests.get(f"{api_server}/api/module/speakereq/eq/input_0/1")
+    assert response.status_code == 200
+    eq_data = response.json()
+    assert eq_data["type"] == "off"
+    assert eq_data["enabled"] == True
+    
+    # Verify enable is true
+    response = requests.get(f"{api_server}/api/module/speakereq/enable")
+    assert response.status_code == 200
+    assert response.json()["enabled"] == True
+    
+    # Verify crossbar is identity matrix via status
+    response = requests.get(f"{api_server}/api/module/speakereq/status")
+    assert response.status_code == 200
+    status = response.json()
+    assert status["crossbar"]["input_0_to_output_0"] == 1.0
+    assert status["crossbar"]["input_0_to_output_1"] == 0.0
+    assert status["crossbar"]["input_1_to_output_0"] == 0.0
+    assert status["crossbar"]["input_1_to_output_1"] == 1.0
+
+
 if __name__ == "__main__":
     # Allow running tests directly
     pytest.main([__file__, "-v"])
+
