@@ -26,10 +26,6 @@ path = "src/pw-props.rs"
 name = "pw-route"
 path = "src/pw-route.rs"
 
-[[bin]]
-name = "link-nodes"
-path = "src/link-nodes.rs"
-
 [dependencies]
 pipewire = { version = "0.9", features = ["v0_3_44"] }
 libspa = "0.9"

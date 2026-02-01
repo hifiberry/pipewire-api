@@ -18,6 +18,10 @@ struct Args {
     /// Disable automatic link management
     #[arg(long)]
     no_auto_link: bool,
+
+    /// Do not start the API server, only apply initial rules and exit
+    #[arg(long)]
+    no_api: bool,
 }
 
 #[tokio::main]
@@ -69,14 +73,23 @@ async fn main() -> Result<()> {
         // Apply startup rules
         pw_api::link_scheduler::apply_startup_rules(state.clone()).await;
 
+        // If --no-api is set, exit now after applying rules
+        if args.no_api {
+            tracing::info!("Initial rules applied, exiting (--no-api mode)");
+            return Ok(());
+        }
+
         // Start the link scheduler for periodic relinking
         let _scheduler_handle = pw_api::link_scheduler::start_link_scheduler(state.clone());
+    } else if args.no_api {
+        // --no-api without link rules, just exit
+        tracing::info!("Volume rules applied, exiting (--no-api mode)");
+        return Ok(());
     }
 
-    // Create router with api, speakereq, and links endpoints
+    // Create router with api and speakereq endpoints
     let app = pw_api::api::create_router(state.clone())
-        .merge(pw_api::speakereq::create_router(state.clone()))
-        .merge(pw_api::links::create_router(state));
+        .merge(pw_api::speakereq::create_router(state));
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
