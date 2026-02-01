@@ -114,8 +114,16 @@ make deb
 
 ## Documentation
 
-- [api.md](api.md) - General API documentation
-- [LINKS_API.md](LINKS_API.md) - Link management API documentation
+API documentation is split into separate files for each module:
+
+- [docs/README.md](docs/README.md) - API documentation index
+- [docs/API_CORE.md](docs/API_CORE.md) - Core endpoints (listing, properties, cache)
+- [docs/API_VOLUME.md](docs/API_VOLUME.md) - Volume management
+- [docs/API_LINKS.md](docs/API_LINKS.md) - Link management
+- [docs/API_SPEAKEREQ.md](docs/API_SPEAKEREQ.md) - SpeakerEQ module
+- [docs/API_RIAA.md](docs/API_RIAA.md) - RIAA phono preamplifier module
+- [LINKS_API.md](LINKS_API.md) - Link rules documentation (experimental)
+- [link-rules.conf.md](link-rules.conf.md) - Link rules configuration format
 
 ## API Endpoints
 
