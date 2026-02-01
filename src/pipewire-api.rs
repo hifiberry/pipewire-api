@@ -90,9 +90,10 @@ async fn main() -> Result<()> {
     let riaa_state = Arc::new(NodeState::new("riaa".to_string()));
     
     // Create router with global api and module-specific endpoints
-    let app = pw_api::api::create_router(app_state)
+    let app = pw_api::api::create_router(app_state.clone())
         .merge(pw_api::speakereq::create_router(speakereq_state))
-        .merge(pw_api::riaa::create_router(riaa_state));
+        .merge(pw_api::riaa::create_router(riaa_state))
+        .merge(pw_api::graph::create_graph_router().with_state(app_state));
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
