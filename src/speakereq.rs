@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::api_server::{ApiError, AppState};
+use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
 // EQ type constants
@@ -146,7 +146,7 @@ fn eq_type_from_string(type_str: &str) -> Result<i32, ApiError> {
 }
 
 // Handlers
-pub async fn get_structure(State(state): State<Arc<AppState>>) -> Result<Json<StructureResponse>, ApiError> {
+pub async fn get_structure(State(state): State<Arc<NodeState>>) -> Result<Json<StructureResponse>, ApiError> {
     let params = state.get_params()?;
     
     let enabled = params.get("speakereq2x2:Enable")
@@ -191,7 +191,7 @@ pub async fn get_io() -> Json<IoResponse> {
 }
 
 /// Get plugin configuration by probing available parameters from PipeWire
-pub async fn get_config(State(state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serde_json::Value>, ApiError> {
     // Force refresh to ensure we have all parameters
     state.refresh_params_cache()?;
     let params = state.get_params()?;
@@ -267,7 +267,7 @@ pub async fn get_config(State(state): State<Arc<AppState>>) -> Result<Json<serde
 }
 
 pub async fn get_eq_band(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Path((block, band)): Path<(String, u32)>,
 ) -> Result<Json<EqBand>, ApiError> {
     let params = state.get_params()?;
@@ -327,7 +327,7 @@ pub async fn get_eq_band(
 }
 
 pub async fn set_eq_band(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Path((block, band)): Path<(String, u32)>,
     Json(eq_band): Json<EqBand>,
 ) -> Result<Json<EqBand>, ApiError> {
@@ -369,7 +369,7 @@ pub async fn set_eq_band(
 }
 
 pub async fn clear_eq_bank(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Path(block): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Clear all 20 EQ bands by setting them to "off" (type = 0) in a single call
@@ -387,7 +387,7 @@ pub async fn clear_eq_bank(
     })))
 }
 
-pub async fn get_master_gain(State(state): State<Arc<AppState>>) -> Result<Json<GainValue>, ApiError> {
+pub async fn get_master_gain(State(state): State<Arc<NodeState>>) -> Result<Json<GainValue>, ApiError> {
     let params = state.get_params()?;
     
     let gain = params.get("speakereq2x2:master_gain_db")
@@ -402,7 +402,7 @@ pub async fn get_master_gain(State(state): State<Arc<AppState>>) -> Result<Json<
 }
 
 pub async fn set_master_gain(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(gain_value): Json<GainValue>,
 ) -> Result<Json<GainValue>, ApiError> {
     if gain_value.gain < -60.0 || gain_value.gain > 12.0 {
@@ -414,7 +414,7 @@ pub async fn set_master_gain(
     Ok(Json(gain_value))
 }
 
-pub async fn get_enable(State(state): State<Arc<AppState>>) -> Result<Json<EnableValue>, ApiError> {
+pub async fn get_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
     
     let enabled = params.get("speakereq2x2:Enable")
@@ -428,7 +428,7 @@ pub async fn get_enable(State(state): State<Arc<AppState>>) -> Result<Json<Enabl
 }
 
 pub async fn set_enable(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<EnableValue>, ApiError> {
     state.set_parameter("Enable", ParameterValue::Bool(enable_value.enabled))?;
@@ -437,7 +437,7 @@ pub async fn set_enable(
 }
 
 pub async fn set_eq_band_enabled(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Path((block, band)): Path<(String, u32)>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<EnableValue>, ApiError> {
@@ -447,7 +447,7 @@ pub async fn set_eq_band_enabled(
     Ok(Json(enable_value))
 }
 
-pub async fn get_status(State(state): State<Arc<AppState>>) -> Result<Json<StatusResponse>, ApiError> {
+pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<StatusResponse>, ApiError> {
     let params = state.get_params()?;
     
     // Get enable status
@@ -616,7 +616,7 @@ pub async fn get_status(State(state): State<Arc<AppState>>) -> Result<Json<Statu
 }
 
 // Create router for speakereq endpoints
-pub fn create_router(state: Arc<AppState>) -> Router {
+pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
         .route("/api/module/speakereq/structure", get(get_structure))
         .route("/api/module/speakereq/config", get(get_config))
@@ -634,7 +634,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
 /// Refresh parameter cache (use if external tools modified parameters)
 pub async fn refresh_cache(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.refresh_params_cache()?;
     Ok(Json(serde_json::json!({
@@ -644,7 +644,7 @@ pub async fn refresh_cache(
 
 /// Set all parameters to default values
 pub async fn set_default(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use std::collections::HashMap;
     

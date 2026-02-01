@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::api_server::{ApiError, AppState};
+use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
 // API Models
@@ -51,7 +51,7 @@ pub struct NotchConfig {
 }
 
 // Handlers
-pub async fn get_config(State(state): State<Arc<AppState>>) -> Result<Json<RiaaConfig>, ApiError> {
+pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<RiaaConfig>, ApiError> {
     let params = state.get_params()?;
     
     let gain_db = params.get("riaa:Gain (dB)")
@@ -130,7 +130,7 @@ pub async fn get_config(State(state): State<Arc<AppState>>) -> Result<Json<RiaaC
     }))
 }
 
-pub async fn get_gain(State(state): State<Arc<AppState>>) -> Result<Json<GainValue>, ApiError> {
+pub async fn get_gain(State(state): State<Arc<NodeState>>) -> Result<Json<GainValue>, ApiError> {
     let params = state.get_params()?;
     
     let gain_db = params.get("riaa:Gain (dB)")
@@ -144,7 +144,7 @@ pub async fn get_gain(State(state): State<Arc<AppState>>) -> Result<Json<GainVal
 }
 
 pub async fn set_gain(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(gain_value): Json<GainValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.set_parameter("riaa:Gain (dB)", ParameterValue::Float(gain_value.gain_db))?;
@@ -155,7 +155,7 @@ pub async fn set_gain(
     })))
 }
 
-pub async fn get_subsonic_filter(State(state): State<Arc<AppState>>) -> Result<Json<SubsonicFilterValue>, ApiError> {
+pub async fn get_subsonic_filter(State(state): State<Arc<NodeState>>) -> Result<Json<SubsonicFilterValue>, ApiError> {
     let params = state.get_params()?;
     
     let filter = params.get("riaa:Subsonic Filter")
@@ -169,7 +169,7 @@ pub async fn get_subsonic_filter(State(state): State<Arc<AppState>>) -> Result<J
 }
 
 pub async fn set_subsonic_filter(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(filter_value): Json<SubsonicFilterValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.set_parameter("riaa:Subsonic Filter", ParameterValue::Int(filter_value.filter))?;
@@ -180,7 +180,7 @@ pub async fn set_subsonic_filter(
     })))
 }
 
-pub async fn get_riaa_enable(State(state): State<Arc<AppState>>) -> Result<Json<EnableValue>, ApiError> {
+pub async fn get_riaa_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
     
     let enabled = params.get("riaa:RIAA Enable")
@@ -194,7 +194,7 @@ pub async fn get_riaa_enable(State(state): State<Arc<AppState>>) -> Result<Json<
 }
 
 pub async fn set_riaa_enable(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.set_parameter("riaa:RIAA Enable", ParameterValue::Bool(enable_value.enabled))?;
@@ -205,7 +205,7 @@ pub async fn set_riaa_enable(
     })))
 }
 
-pub async fn get_declick_enable(State(state): State<Arc<AppState>>) -> Result<Json<EnableValue>, ApiError> {
+pub async fn get_declick_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
     
     let enabled = params.get("riaa:Declick Enable")
@@ -219,7 +219,7 @@ pub async fn get_declick_enable(State(state): State<Arc<AppState>>) -> Result<Js
 }
 
 pub async fn set_declick_enable(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     state.set_parameter("riaa:Declick Enable", ParameterValue::Bool(enable_value.enabled))?;
@@ -230,7 +230,7 @@ pub async fn set_declick_enable(
     })))
 }
 
-pub async fn get_spike_config(State(state): State<Arc<AppState>>) -> Result<Json<SpikeConfig>, ApiError> {
+pub async fn get_spike_config(State(state): State<Arc<NodeState>>) -> Result<Json<SpikeConfig>, ApiError> {
     let params = state.get_params()?;
     
     let threshold_db = params.get("riaa:Spike Threshold (dB)")
@@ -254,7 +254,7 @@ pub async fn get_spike_config(State(state): State<Arc<AppState>>) -> Result<Json
 }
 
 pub async fn set_spike_config(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(spike_config): Json<SpikeConfig>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use std::collections::HashMap;
@@ -272,7 +272,7 @@ pub async fn set_spike_config(
     })))
 }
 
-pub async fn get_notch_config(State(state): State<Arc<AppState>>) -> Result<Json<NotchConfig>, ApiError> {
+pub async fn get_notch_config(State(state): State<Arc<NodeState>>) -> Result<Json<NotchConfig>, ApiError> {
     let params = state.get_params()?;
     
     let enabled = params.get("riaa:Notch Filter Enable")
@@ -304,7 +304,7 @@ pub async fn get_notch_config(State(state): State<Arc<AppState>>) -> Result<Json
 }
 
 pub async fn set_notch_config(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<NodeState>>,
     Json(notch_config): Json<NotchConfig>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use std::collections::HashMap;
@@ -324,7 +324,7 @@ pub async fn set_notch_config(
     })))
 }
 
-pub async fn set_default(State(state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn set_default(State(state): State<Arc<NodeState>>) -> Result<Json<serde_json::Value>, ApiError> {
     use std::collections::HashMap;
     let mut params = HashMap::new();
     
@@ -343,7 +343,7 @@ pub async fn set_default(State(state): State<Arc<AppState>>) -> Result<Json<serd
 }
 
 // Create router for RIAA endpoints
-pub fn create_router(state: Arc<AppState>) -> Router {
+pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
         .route("/api/module/riaa/config", get(get_config))
         .route("/api/module/riaa/gain", get(get_gain).put(set_gain))

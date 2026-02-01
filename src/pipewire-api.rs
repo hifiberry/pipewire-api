@@ -1,5 +1,5 @@
 use anyhow::Result;
-use pw_api::{PipeWireClient, AppState};
+use pw_api::{PipeWireClient, AppState, NodeState};
 use std::sync::Arc;
 use clap::Parser;
 
@@ -31,17 +31,11 @@ async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
-    // Verify node exists
-    let client = PipeWireClient::new()?;
-    let (info, _node) = client.find_and_bind_node("speakereq2x2", 2)?;
-    
-    tracing::info!("Found speakereq2x2 node (id: {})", info.id);
-
-    // Create shared state (just the node name, we'll reconnect per request)
-    let state = Arc::new(AppState::new(info.name));
+    // Create global application state (not tied to any specific node)
+    let app_state = Arc::new(AppState::new());
 
     // Load PipeWire object cache on startup
-    if let Err(e) = state.refresh_object_cache() {
+    if let Err(e) = app_state.refresh_object_cache() {
         tracing::warn!("Failed to load object cache on startup: {}", e);
     }
 
@@ -68,10 +62,10 @@ async fn main() -> Result<()> {
         }
         
         tracing::info!("Total {} link rule(s) configured", all_rules.len());
-        state.set_link_rules(all_rules);
+        app_state.set_link_rules(all_rules);
 
         // Apply startup rules
-        pw_api::link_scheduler::apply_startup_rules(state.clone()).await;
+        pw_api::link_scheduler::apply_startup_rules(app_state.clone()).await;
 
         // If --no-api is set, exit now after applying rules
         if args.no_api {
@@ -80,19 +74,20 @@ async fn main() -> Result<()> {
         }
 
         // Start the link scheduler for periodic relinking
-        let _scheduler_handle = pw_api::link_scheduler::start_link_scheduler(state.clone());
+        let _scheduler_handle = pw_api::link_scheduler::start_link_scheduler(app_state.clone());
     } else if args.no_api {
         // --no-api without link rules, just exit
         tracing::info!("Volume rules applied, exiting (--no-api mode)");
         return Ok(());
     }
 
-    // Create router with api, speakereq, and riaa endpoints
-    // Note: speakereq and riaa need separate AppState instances since they target different nodes
-    let riaa_state = Arc::new(pw_api::api_server::AppState::new("riaa".to_string()));
+    // Create node-specific state for modules that manage specific nodes
+    let speakereq_state = Arc::new(NodeState::new("speakereq2x2".to_string()));
+    let riaa_state = Arc::new(NodeState::new("riaa".to_string()));
     
-    let app = pw_api::api::create_router(state.clone())
-        .merge(pw_api::speakereq::create_router(state))
+    // Create router with global api and module-specific endpoints
+    let app = pw_api::api::create_router(app_state)
+        .merge(pw_api::speakereq::create_router(speakereq_state))
         .merge(pw_api::riaa::create_router(riaa_state));
 
     // Bind to localhost or all interfaces

@@ -38,13 +38,8 @@ impl Default for RuleStatus {
     }
 }
 
-// Since PipeWire Node is not Send/Sync, we store just the node name
-// and recreate connections per request (or use a message passing pattern)
+/// Global application state (not tied to any specific node)
 pub struct AppState {
-    pub node_name: String,
-    // Cache for parameters to avoid too many PipeWire calls
-    // This is especially important for EQ parameters as external tools rarely change them
-    pub cache: Arc<Mutex<Option<HashMap<String, ParameterValue>>>>,
     // Link rules to be monitored and relinked
     pub link_rules: Arc<Mutex<Vec<LinkRule>>>,
     // Status tracking for each rule (indexed by rule position)
@@ -54,10 +49,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(node_name: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            node_name,
-            cache: Arc::new(Mutex::new(None)),
             link_rules: Arc::new(Mutex::new(Vec::new())),
             rule_status: Arc::new(Mutex::new(HashMap::new())),
             object_cache: Arc::new(RwLock::new(Vec::new())),
@@ -137,6 +130,24 @@ impl AppState {
     /// Get the status of a specific rule
     pub fn get_rule_status(&self, rule_idx: usize) -> Option<RuleStatus> {
         self.rule_status.lock().unwrap().get(&rule_idx).cloned()
+    }
+}
+
+/// Node-specific state for modules that manage a specific PipeWire node
+/// (e.g., speakereq, riaa)
+pub struct NodeState {
+    pub node_name: String,
+    // Cache for parameters to avoid too many PipeWire calls
+    // This is especially important for EQ parameters as external tools rarely change them
+    pub cache: Arc<Mutex<Option<HashMap<String, ParameterValue>>>>,
+}
+
+impl NodeState {
+    pub fn new(node_name: String) -> Self {
+        Self {
+            node_name,
+            cache: Arc::new(Mutex::new(None)),
+        }
     }
 
     // Get parameters using pw-cli (with caching to avoid excessive calls)
