@@ -345,13 +345,13 @@ pub async fn set_default(State(state): State<Arc<NodeState>>) -> Result<Json<ser
 // Create router for RIAA endpoints
 pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
-        .route("/api/module/riaa/config", get(get_config))
-        .route("/api/module/riaa/gain", get(get_gain).put(set_gain))
-        .route("/api/module/riaa/subsonic", get(get_subsonic_filter).put(set_subsonic_filter))
-        .route("/api/module/riaa/riaa-enable", get(get_riaa_enable).put(set_riaa_enable))
-        .route("/api/module/riaa/declick", get(get_declick_enable).put(set_declick_enable))
-        .route("/api/module/riaa/spike", get(get_spike_config).put(set_spike_config))
-        .route("/api/module/riaa/notch", get(get_notch_config).put(set_notch_config))
-        .route("/api/module/riaa/set-default", put(set_default))
+        .route("/api/v1/module/riaa/config", get(get_config))
+        .route("/api/v1/module/riaa/gain", get(get_gain).put(set_gain))
+        .route("/api/v1/module/riaa/subsonic", get(get_subsonic_filter).put(set_subsonic_filter))
+        .route("/api/v1/module/riaa/riaa-enable", get(get_riaa_enable).put(set_riaa_enable))
+        .route("/api/v1/module/riaa/declick", get(get_declick_enable).put(set_declick_enable))
+        .route("/api/v1/module/riaa/spike", get(get_spike_config).put(set_spike_config))
+        .route("/api/v1/module/riaa/notch", get(get_notch_config).put(set_notch_config))
+        .route("/api/v1/module/riaa/set-default", put(set_default))
         .with_state(state)
 }

@@ -30,8 +30,8 @@ For detailed endpoint documentation, see the module-specific files:
 | Module | Base URL |
 |--------|----------|
 | Core, Volume, Links, Graph | `http://localhost:2716/api/v1` |
-| SpeakerEQ | `http://localhost:2716/api/module/speakereq` |
-| RIAA | `http://localhost:2716/api/module/riaa` |
+| SpeakerEQ | `http://localhost:2716/api/v1/module/speakereq` |
+| RIAA | `http://localhost:2716/api/v1/module/riaa` |
 
 Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost` flag to restrict to localhost only.
 
@@ -71,33 +71,33 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 | `/api/v1/links/ports/output` | GET | List output ports |
 | `/api/v1/links/ports/input` | GET | List input ports |
 
-### SpeakerEQ Endpoints (`/api/module/speakereq`)
+### SpeakerEQ Endpoints (`/api/v1/module/speakereq`)
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
-| `/api/module/speakereq/structure` | GET | Get DSP structure |
-| `/api/module/speakereq/config` | GET | Get configuration |
-| `/api/module/speakereq/io` | GET | Get I/O count |
-| `/api/module/speakereq/status` | GET | Get complete status |
-| `/api/module/speakereq/eq/:block/:band` | GET, PUT | Get/set EQ band |
-| `/api/module/speakereq/eq/:block/:band/enabled` | PUT | Enable/disable EQ band |
-| `/api/module/speakereq/eq/:block/clear` | PUT | Clear all EQ in block |
-| `/api/module/speakereq/gain/master` | GET, PUT | Get/set master gain |
-| `/api/module/speakereq/enable` | GET, PUT | Get/set enable status |
-| `/api/module/speakereq/refresh` | POST | Refresh parameter cache |
-| `/api/module/speakereq/default` | POST | Reset to defaults |
+| `/api/v1/module/speakereq/structure` | GET | Get DSP structure |
+| `/api/v1/module/speakereq/config` | GET | Get configuration |
+| `/api/v1/module/speakereq/io` | GET | Get I/O count |
+| `/api/v1/module/speakereq/status` | GET | Get complete status |
+| `/api/v1/module/speakereq/eq/:block/:band` | GET, PUT | Get/set EQ band |
+| `/api/v1/module/speakereq/eq/:block/:band/enabled` | PUT | Enable/disable EQ band |
+| `/api/v1/module/speakereq/eq/:block/clear` | PUT | Clear all EQ in block |
+| `/api/v1/module/speakereq/gain/master` | GET, PUT | Get/set master gain |
+| `/api/v1/module/speakereq/enable` | GET, PUT | Get/set enable status |
+| `/api/v1/module/speakereq/refresh` | POST | Refresh parameter cache |
+| `/api/v1/module/speakereq/default` | POST | Reset to defaults |
 
-### RIAA Endpoints (`/api/module/riaa`)
+### RIAA Endpoints (`/api/v1/module/riaa`)
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
-| `/api/module/riaa/config` | GET | Get all RIAA settings |
-| `/api/module/riaa/gain` | GET, PUT | Get/set gain |
-| `/api/module/riaa/bass` | GET, PUT | Get/set bass |
-| `/api/module/riaa/treble` | GET, PUT | Get/set treble |
-| `/api/module/riaa/balance` | GET, PUT | Get/set balance |
-| `/api/module/riaa/loudness` | GET, PUT | Get/set loudness |
-| `/api/module/riaa/enable` | GET, PUT | Get/set enable status |
-| `/api/module/riaa/refresh` | POST | Refresh parameter cache |
-| `/api/module/riaa/default` | POST | Reset to defaults |
+| `/api/v1/module/riaa/config` | GET | Get all RIAA settings |
+| `/api/v1/module/riaa/gain` | GET, PUT | Get/set gain |
+| `/api/v1/module/riaa/bass` | GET, PUT | Get/set bass |
+| `/api/v1/module/riaa/treble` | GET, PUT | Get/set treble |
+| `/api/v1/module/riaa/balance` | GET, PUT | Get/set balance |
+| `/api/v1/module/riaa/loudness` | GET, PUT | Get/set loudness |
+| `/api/v1/module/riaa/enable` | GET, PUT | Get/set enable status |
+| `/api/v1/module/riaa/refresh` | POST | Refresh parameter cache |
+| `/api/v1/module/riaa/default` | POST | Reset to defaults |
 
 ## Getting Started
 

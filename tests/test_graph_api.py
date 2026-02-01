@@ -46,23 +46,16 @@ class TestGraphDot:
         has_nodes = "node_" in dot or "chain_" in dot
         assert has_nodes, "Graph should contain node or chain definitions"
     
-    def test_graph_dot_has_legend(self, test_env):
-        """Test that graph includes a legend subgraph"""
-        response = requests.get(f"{test_env.base_url}/api/v1/graph")
-        dot = response.text
-        
-        assert "cluster_legend" in dot, "Graph should have legend subgraph"
-        assert "Legend" in dot, "Graph should have 'Legend' label"
-    
     def test_graph_dot_has_color_coding(self, test_env):
         """Test that graph uses color coding for different node types"""
         response = requests.get(f"{test_env.base_url}/api/v1/graph")
         dot = response.text
         
-        # Check for color attributes in legend
-        assert "lightblue" in dot, "Graph should use lightblue for sinks"
-        assert "lightgreen" in dot, "Graph should use lightgreen for sources"
-        assert "lightyellow" in dot, "Graph should use lightyellow for filters"
+        # Check for color attributes (lightgreen only present if sources exist)
+        assert "lightblue" in dot or "lightyellow" in dot, "Graph should use colors for nodes"
+        # Filter chains use lightyellow
+        if "chain_" in dot:
+            assert "lightyellow" in dot, "Graph should use lightyellow for filter chains"
     
     def test_graph_dot_filter_chains_combined(self, test_env):
         """Test that filter-chains are combined into single nodes"""

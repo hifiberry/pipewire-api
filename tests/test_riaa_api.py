@@ -33,7 +33,7 @@ def test_get_config(api_server):
     """Test getting RIAA configuration."""
     find_riaa_node(api_server)  # Ensure node exists
     
-    response = requests.get(f"{api_server}/api/module/riaa/config")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/config")
     assert response.status_code == 200
     
     config = response.json()
@@ -54,13 +54,13 @@ def test_set_default(api_server):
     node_id = find_riaa_node(api_server)
     
     # First set some non-default values
-    requests.put(f"{api_server}/api/module/riaa/gain", json={"gain_db": 5.0})
-    requests.put(f"{api_server}/api/module/riaa/subsonic", json={"filter": 1})
-    requests.put(f"{api_server}/api/module/riaa/riaa-enable", json={"enabled": True})
-    requests.put(f"{api_server}/api/module/riaa/declick", json={"enabled": True})
+    requests.put(f"{api_server}/api/v1/module/riaa/gain", json={"gain_db": 5.0})
+    requests.put(f"{api_server}/api/v1/module/riaa/subsonic", json={"filter": 1})
+    requests.put(f"{api_server}/api/v1/module/riaa/riaa-enable", json={"enabled": True})
+    requests.put(f"{api_server}/api/v1/module/riaa/declick", json={"enabled": True})
     
     # Reset to defaults
-    response = requests.put(f"{api_server}/api/module/riaa/set-default")
+    response = requests.put(f"{api_server}/api/v1/module/riaa/set-default")
     assert response.status_code == 200
     
     result = response.json()
@@ -81,7 +81,7 @@ def test_get_gain(api_server):
     """Test getting RIAA gain."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/gain")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/gain")
     assert response.status_code == 200
     
     data = response.json()
@@ -95,7 +95,7 @@ def test_set_gain(api_server):
     node_id = find_riaa_node(api_server)
     
     # Set gain to 3.5 dB via API
-    response = requests.put(f"{api_server}/api/module/riaa/gain", json={"gain_db": 3.5})
+    response = requests.put(f"{api_server}/api/v1/module/riaa/gain", json={"gain_db": 3.5})
     assert response.status_code == 200
     
     result = response.json()
@@ -111,7 +111,7 @@ def test_get_subsonic_filter(api_server):
     """Test getting RIAA subsonic filter setting."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/subsonic")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/subsonic")
     assert response.status_code == 200
     
     data = response.json()
@@ -124,7 +124,7 @@ def test_set_subsonic_filter(api_server):
     """Test setting RIAA subsonic filter and verify it persists."""
     node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{api_server}/api/module/riaa/subsonic", json={"filter": 1})
+    response = requests.put(f"{api_server}/api/v1/module/riaa/subsonic", json={"filter": 1})
     assert response.status_code == 200
     
     result = response.json()
@@ -140,7 +140,7 @@ def test_get_riaa_enable(api_server):
     """Test getting RIAA enable status."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/riaa-enable")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/riaa-enable")
     assert response.status_code == 200
     
     data = response.json()
@@ -153,7 +153,7 @@ def test_set_riaa_enable(api_server):
     """Test setting RIAA enable and verify it persists."""
     node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{api_server}/api/module/riaa/riaa-enable", json={"enabled": True})
+    response = requests.put(f"{api_server}/api/v1/module/riaa/riaa-enable", json={"enabled": True})
     assert response.status_code == 200
     
     result = response.json()
@@ -169,7 +169,7 @@ def test_get_declick_enable(api_server):
     """Test getting declick enable status."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/declick")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/declick")
     assert response.status_code == 200
     
     data = response.json()
@@ -182,7 +182,7 @@ def test_set_declick_enable(api_server):
     """Test setting declick enable and verify it persists."""
     node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{api_server}/api/module/riaa/declick", json={"enabled": True})
+    response = requests.put(f"{api_server}/api/v1/module/riaa/declick", json={"enabled": True})
     assert response.status_code == 200
     
     result = response.json()
@@ -198,7 +198,7 @@ def test_get_spike_config(api_server):
     """Test getting spike detection configuration."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/spike")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/spike")
     assert response.status_code == 200
     
     data = response.json()
@@ -213,7 +213,7 @@ def test_set_spike_config(api_server):
     find_riaa_node(api_server)
     
     response = requests.put(
-        f"{api_server}/api/module/riaa/spike",
+        f"{api_server}/api/v1/module/riaa/spike",
         json={"threshold_db": 25.0, "width_ms": 2.0}
     )
     assert response.status_code == 200
@@ -228,7 +228,7 @@ def test_get_notch_config(api_server):
     """Test getting notch filter configuration."""
     find_riaa_node(api_server)
     
-    response = requests.get(f"{api_server}/api/module/riaa/notch")
+    response = requests.get(f"{api_server}/api/v1/module/riaa/notch")
     assert response.status_code == 200
     
     data = response.json()
@@ -245,7 +245,7 @@ def test_set_notch_config(api_server):
     find_riaa_node(api_server)
     
     response = requests.put(
-        f"{api_server}/api/module/riaa/notch",
+        f"{api_server}/api/v1/module/riaa/notch",
         json={"enabled": True, "frequency_hz": 300.0, "q_factor": 30.0}
     )
     assert response.status_code == 200

@@ -136,22 +136,22 @@ The API server provides several categories of endpoints:
 - `/api/v1/properties/:id` - Get properties for a specific object
 
 ### SpeakerEQ Control
-- `/api/module/speakereq/structure` - Get DSP structure
-- `/api/module/speakereq/io` - Get I/O configuration
-- `/api/module/speakereq/status` - Get current status
-- `/api/module/speakereq/eq` - Manage equalizer settings
-- `/api/module/speakereq/gain` - Control gain settings
-- `/api/module/speakereq/enable` - Enable/disable processing
+- `/api/v1/module/speakereq/structure` - Get DSP structure
+- `/api/v1/module/speakereq/io` - Get I/O configuration
+- `/api/v1/module/speakereq/status` - Get current status
+- `/api/v1/module/speakereq/eq` - Manage equalizer settings
+- `/api/v1/module/speakereq/gain` - Control gain settings
+- `/api/v1/module/speakereq/enable` - Enable/disable processing
 
 ### RIAA Phono Preamplifier Control
-- `/api/module/riaa/config` - Get all RIAA settings
-- `/api/module/riaa/gain` - Get/set preamplifier gain
-- `/api/module/riaa/subsonic` - Get/set subsonic (rumble) filter
-- `/api/module/riaa/riaa-enable` - Enable/disable RIAA equalization
-- `/api/module/riaa/declick` - Enable/disable declicker
-- `/api/module/riaa/spike` - Configure spike detection
-- `/api/module/riaa/notch` - Configure notch filter
-- `/api/module/riaa/set-default` - Reset to defaults
+- `/api/v1/module/riaa/config` - Get all RIAA settings
+- `/api/v1/module/riaa/gain` - Get/set preamplifier gain
+- `/api/v1/module/riaa/subsonic` - Get/set subsonic (rumble) filter
+- `/api/v1/module/riaa/riaa-enable` - Enable/disable RIAA equalization
+- `/api/v1/module/riaa/declick` - Enable/disable declicker
+- `/api/v1/module/riaa/spike` - Configure spike detection
+- `/api/v1/module/riaa/notch` - Configure notch filter
+- `/api/v1/module/riaa/set-default` - Reset to defaults
 
 ### Link Management (Experimental)
 - `/api/v1/links` - List all active links

@@ -3,7 +3,7 @@
 The SpeakerEQ module provides control for the SpeakerEQ 2x2 audio filter plugin, including parametric EQ, gain control, crossbar routing, and delay settings.
 
 ## Base URL
-`http://localhost:2716/api/module/speakereq`
+`http://localhost:2716/api/v1/module/speakereq`
 
 ---
 
@@ -12,7 +12,7 @@ The SpeakerEQ module provides control for the SpeakerEQ 2x2 audio filter plugin,
 ### Get Plugin Structure
 
 ```
-GET /api/module/speakereq/structure
+GET /api/v1/module/speakereq/structure
 ```
 
 Returns the overall structure of the plugin including available blocks and their configuration.
@@ -42,7 +42,7 @@ Returns the overall structure of the plugin including available blocks and their
 ### Get Input/Output Count
 
 ```
-GET /api/module/speakereq/io
+GET /api/v1/module/speakereq/io
 ```
 
 Returns the number of inputs and outputs.
@@ -58,7 +58,7 @@ Returns the number of inputs and outputs.
 ### Get Plugin Configuration (Dynamic)
 
 ```
-GET /api/module/speakereq/config
+GET /api/v1/module/speakereq/config
 ```
 
 Dynamically discovers the plugin configuration by probing available parameters from PipeWire.
@@ -82,7 +82,7 @@ Dynamically discovers the plugin configuration by probing available parameters f
 ### Get Complete Status
 
 ```
-GET /api/module/speakereq/status
+GET /api/v1/module/speakereq/status
 ```
 
 Get the complete status of the plugin including enable state, master gain, crossbar matrix, and all block configurations with EQ bands.
@@ -145,7 +145,7 @@ Get the complete status of the plugin including enable state, master gain, cross
 ### Get Single EQ Band
 
 ```
-GET /api/module/speakereq/eq/:block/:band
+GET /api/v1/module/speakereq/eq/:block/:band
 ```
 
 Get a specific EQ band configuration.
@@ -170,7 +170,7 @@ Get a specific EQ band configuration.
 ### Set Single EQ Band
 
 ```
-PUT /api/module/speakereq/eq/:block/:band
+PUT /api/v1/module/speakereq/eq/:block/:band
 ```
 
 Update a specific EQ band.
@@ -205,7 +205,7 @@ Update a specific EQ band.
 ### Enable/Disable Single EQ Band
 
 ```
-PUT /api/module/speakereq/eq/:block/:band/enabled
+PUT /api/v1/module/speakereq/eq/:block/:band/enabled
 ```
 
 Enable or disable a specific EQ band without modifying its other parameters.
@@ -227,7 +227,7 @@ Enable or disable a specific EQ band without modifying its other parameters.
 ### Clear All EQ Bands in a Block
 
 ```
-PUT /api/module/speakereq/eq/:block/clear
+PUT /api/v1/module/speakereq/eq/:block/clear
 ```
 
 Clear all EQ bands in a block by setting them to "off" (type 0).
@@ -247,7 +247,7 @@ Clear all EQ bands in a block by setting them to "off" (type 0).
 ### Get Master Gain
 
 ```
-GET /api/module/speakereq/gain/master
+GET /api/v1/module/speakereq/gain/master
 ```
 
 **Response:**
@@ -260,7 +260,7 @@ GET /api/module/speakereq/gain/master
 ### Set Master Gain
 
 ```
-PUT /api/module/speakereq/gain/master
+PUT /api/v1/module/speakereq/gain/master
 ```
 
 **Request Body:**
@@ -281,8 +281,8 @@ PUT /api/module/speakereq/gain/master
 ### Get/Set Input Gain
 
 ```
-GET /api/module/speakereq/gain/input/:channel
-PUT /api/module/speakereq/gain/input/:channel
+GET /api/v1/module/speakereq/gain/input/:channel
+PUT /api/v1/module/speakereq/gain/input/:channel
 ```
 
 **Parameters:**
@@ -291,8 +291,8 @@ PUT /api/module/speakereq/gain/input/:channel
 ### Get/Set Output Gain
 
 ```
-GET /api/module/speakereq/gain/output/:channel
-PUT /api/module/speakereq/gain/output/:channel
+GET /api/v1/module/speakereq/gain/output/:channel
+PUT /api/v1/module/speakereq/gain/output/:channel
 ```
 
 **Parameters:**
@@ -305,7 +305,7 @@ PUT /api/module/speakereq/gain/output/:channel
 ### Get All Delays
 
 ```
-GET /api/module/speakereq/delay
+GET /api/v1/module/speakereq/delay
 ```
 
 **Response:**
@@ -321,7 +321,7 @@ GET /api/module/speakereq/delay
 ### Set Delay
 
 ```
-PUT /api/module/speakereq/delay/:channel
+PUT /api/v1/module/speakereq/delay/:channel
 ```
 
 **Request Body:**
@@ -347,7 +347,7 @@ PUT /api/module/speakereq/delay/:channel
 ### Get Crossbar Matrix
 
 ```
-GET /api/module/speakereq/crossbar
+GET /api/v1/module/speakereq/crossbar
 ```
 
 Get the routing matrix values.
@@ -365,7 +365,7 @@ Get the routing matrix values.
 ### Set Crossbar Value
 
 ```
-PUT /api/module/speakereq/crossbar/:input/:output
+PUT /api/v1/module/speakereq/crossbar/:input/:output
 ```
 
 Set a single crossbar routing value.
@@ -398,7 +398,7 @@ Set a single crossbar routing value.
 ### Get Enable Status
 
 ```
-GET /api/module/speakereq/enable
+GET /api/v1/module/speakereq/enable
 ```
 
 **Response:**
@@ -412,7 +412,7 @@ GET /api/module/speakereq/enable
 ### Set Enable Status
 
 ```
-PUT /api/module/speakereq/enable
+PUT /api/v1/module/speakereq/enable
 ```
 
 **Request Body:**
@@ -433,7 +433,7 @@ PUT /api/module/speakereq/enable
 ### Refresh Parameter Cache
 
 ```
-POST /api/module/speakereq/refresh
+POST /api/v1/module/speakereq/refresh
 ```
 
 Force refresh of parameter cache.
@@ -448,7 +448,7 @@ Force refresh of parameter cache.
 ### Set Default Configuration
 
 ```
-POST /api/module/speakereq/default
+POST /api/v1/module/speakereq/default
 ```
 
 Reset all parameters to default values:
@@ -468,7 +468,7 @@ Reset all parameters to default values:
 ### Get License Status
 
 ```
-GET /api/module/speakereq/license
+GET /api/v1/module/speakereq/license
 ```
 
 **Response:**

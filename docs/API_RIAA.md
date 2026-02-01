@@ -3,14 +3,14 @@
 The RIAA module provides control for the vinyl phono preamplifier plugin, including RIAA equalization, subsonic filtering, declicking, and notch filtering.
 
 ## Base URL
-`http://localhost:2716/api/module/riaa`
+`http://localhost:2716/api/v1/module/riaa`
 
 ---
 
 ## Get Complete Configuration
 
 ```
-GET /api/module/riaa/config
+GET /api/v1/module/riaa/config
 ```
 
 Returns all RIAA settings in a single response.
@@ -35,8 +35,8 @@ Returns all RIAA settings in a single response.
 ## Get/Set Gain
 
 ```
-GET /api/module/riaa/gain
-PUT /api/module/riaa/gain
+GET /api/v1/module/riaa/gain
+PUT /api/v1/module/riaa/gain
 ```
 
 Get or set the preamplifier gain in decibels.
@@ -68,8 +68,8 @@ Get or set the preamplifier gain in decibels.
 ## Get/Set Subsonic Filter
 
 ```
-GET /api/module/riaa/subsonic
-PUT /api/module/riaa/subsonic
+GET /api/v1/module/riaa/subsonic
+PUT /api/v1/module/riaa/subsonic
 ```
 
 Get or set the subsonic (rumble) filter setting.
@@ -109,8 +109,8 @@ Get or set the subsonic (rumble) filter setting.
 ## Get/Set RIAA Enable
 
 ```
-GET /api/module/riaa/riaa-enable
-PUT /api/module/riaa/riaa-enable
+GET /api/v1/module/riaa/riaa-enable
+PUT /api/v1/module/riaa/riaa-enable
 ```
 
 Enable or disable the RIAA equalization curve.
@@ -142,8 +142,8 @@ Enable or disable the RIAA equalization curve.
 ## Get/Set Declick Enable
 
 ```
-GET /api/module/riaa/declick
-PUT /api/module/riaa/declick
+GET /api/v1/module/riaa/declick
+PUT /api/v1/module/riaa/declick
 ```
 
 Enable or disable the declicker for removing pops and clicks from vinyl playback.
@@ -175,8 +175,8 @@ Enable or disable the declicker for removing pops and clicks from vinyl playback
 ## Get/Set Spike Detection Configuration
 
 ```
-GET /api/module/riaa/spike
-PUT /api/module/riaa/spike
+GET /api/v1/module/riaa/spike
+PUT /api/v1/module/riaa/spike
 ```
 
 Configure the spike detection parameters for the declicker.
@@ -217,8 +217,8 @@ Configure the spike detection parameters for the declicker.
 ## Get/Set Notch Filter Configuration
 
 ```
-GET /api/module/riaa/notch
-PUT /api/module/riaa/notch
+GET /api/v1/module/riaa/notch
+PUT /api/v1/module/riaa/notch
 ```
 
 Configure the notch filter for removing specific frequencies (e.g., turntable motor noise at 50Hz or 60Hz).
@@ -263,7 +263,7 @@ Configure the notch filter for removing specific frequencies (e.g., turntable mo
 ## Reset to Defaults
 
 ```
-PUT /api/module/riaa/set-default
+PUT /api/v1/module/riaa/set-default
 ```
 
 Reset all RIAA parameters to their default values.
