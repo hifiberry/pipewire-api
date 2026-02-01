@@ -19,6 +19,8 @@ fn classification_to_string(classification: pwcli::NodeTypeClassification) -> St
         pwcli::NodeTypeClassification::Midi => "Midi".to_string(),
         pwcli::NodeTypeClassification::Video => "Video".to_string(),
         pwcli::NodeTypeClassification::Link => "Link".to_string(),
+        pwcli::NodeTypeClassification::Port => "Port".to_string(),
+        pwcli::NodeTypeClassification::Client => "Client".to_string(),
         pwcli::NodeTypeClassification::Other => "Other".to_string(),
         pwcli::NodeTypeClassification::Unknown => "Unknown".to_string(),
     }
@@ -29,12 +31,17 @@ fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
     // First check media.class
     let mut classification = pwcli::classify_media_class(obj.media_class());
     
-    // If Unknown, check object_type for links (they don't have media.class)
+    // If Unknown, check object_type for specific types that don't have media.class
     if classification == pwcli::NodeTypeClassification::Unknown {
         let simplified_type = pwcli::simplify_type(&obj.object_type);
-        if simplified_type == "link" {
-            classification = pwcli::NodeTypeClassification::Link;
-        }
+        classification = match simplified_type {
+            "link" => pwcli::NodeTypeClassification::Link,
+            "port" => pwcli::NodeTypeClassification::Port,
+            "client" => pwcli::NodeTypeClassification::Client,
+            "module" => pwcli::NodeTypeClassification::Other,
+            "factory" => pwcli::NodeTypeClassification::Other,
+            _ => pwcli::NodeTypeClassification::Unknown,
+        };
     }
     
     PipeWireObject {

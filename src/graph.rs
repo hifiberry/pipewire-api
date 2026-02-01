@@ -37,6 +37,8 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
         pwcli::NodeTypeClassification::Midi => return false,
         pwcli::NodeTypeClassification::Video => return false,
         pwcli::NodeTypeClassification::Link => return false,
+        pwcli::NodeTypeClassification::Port => return false,
+        pwcli::NodeTypeClassification::Client => return false,
         pwcli::NodeTypeClassification::Other => return false,
         pwcli::NodeTypeClassification::Unknown => {
             // Apply additional heuristics for unknown cases
@@ -67,7 +69,6 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
     // Default: include nodes without media.class that look like audio
     obj.object_type == "Node" || obj.object_type == "Device"
 }
-
 /// Detect filter-chain pairs: 
 /// Pattern 1: input (Audio/Sink) + output (Stream/Output/Audio, name=$base.output)
 /// Pattern 2: input (Audio/Source/Virtual) + output (Stream/Output/Audio, name=$base.output)

@@ -23,7 +23,11 @@ pub enum NodeTypeClassification {
     Video,
     /// Link object
     Link,
-    /// Other known type (not audio/midi/video/link)
+    /// Port object
+    Port,
+    /// Client connection
+    Client,
+    /// Other known type (modules, factories, etc.)
     Other,
     /// Unknown - media.class not recognized or missing, needs heuristics
     Unknown,
