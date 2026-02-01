@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
+use regex::Regex;
 
 // Simple cache for node name <-> ID lookups to avoid repeated pw-cli calls
 static NODE_CACHE: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
@@ -21,11 +22,13 @@ fn refresh_node_cache() -> Result<(), String> {
         }
     }
     
+    tracing::debug!("refresh_node_cache: loaded {} nodes into cache: {:?}", 
+        cache.len(), cache.keys().collect::<Vec<_>>());
+    
     let cache_mutex = NODE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     *cache_mutex.lock().unwrap() = cache;
     Ok(())
 }
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 /// A PipeWire object as returned by pw-cli ls
@@ -218,6 +221,63 @@ pub fn find_name_by_id(id: u32) -> Result<Option<String>, String> {
         .map(|(name, _)| name.clone());
     
     Ok(name)
+}
+
+/// Find a node by regex pattern (e.g., "speakereq[0-9]x[0-9]" finds "speakereq2x2", "speakereq4x4", etc.)
+/// The pattern must match the entire node name (anchored with ^ and $).
+pub fn find_node_by_match(pattern: &str) -> Result<Option<PwObject>, String> {
+    tracing::debug!("find_node_by_match: looking for pattern '{}'", pattern);
+    
+    // Compile the regex with anchors to match the entire name
+    let anchored_pattern = format!("^{}$", pattern);
+    let re = Regex::new(&anchored_pattern)
+        .map_err(|e| format!("Invalid regex pattern '{}': {}", pattern, e))?;
+    
+    // Initialize cache on first use
+    if NODE_CACHE.get().is_none() {
+        tracing::debug!("find_node_by_match: cache not initialized, refreshing");
+        refresh_node_cache()?;
+    }
+    
+    // Search cache for a name matching the pattern
+    let cache = NODE_CACHE.get().unwrap().lock().unwrap();
+    tracing::debug!("find_node_by_match: searching cache with {} entries", cache.len());
+    let found = cache.iter()
+        .find(|(name, _)| re.is_match(name))
+        .map(|(name, &id)| {
+            tracing::debug!("find_node_by_match: found '{}' with id {} in cache", name, id);
+            id
+        });
+    
+    if let Some(id) = found {
+        drop(cache);
+        let obj = get_object(id)?;
+        tracing::debug!("find_node_by_match: get_object({}) returned {:?}", id, obj.as_ref().map(|o| o.name()));
+        return Ok(obj);
+    }
+    
+    // Not in cache - refresh and try again
+    tracing::debug!("find_node_by_match: not found in cache, refreshing");
+    drop(cache);
+    refresh_node_cache()?;
+    
+    let cache = NODE_CACHE.get().unwrap().lock().unwrap();
+    let found = cache.iter()
+        .find(|(name, _)| re.is_match(name))
+        .map(|(name, &id)| {
+            tracing::debug!("find_node_by_match: found '{}' with id {} after refresh", name, id);
+            id
+        });
+    
+    if let Some(id) = found {
+        drop(cache);
+        let obj = get_object(id)?;
+        tracing::debug!("find_node_by_match: get_object({}) returned {:?}", id, obj.as_ref().map(|o| o.name()));
+        return Ok(obj);
+    }
+    
+    tracing::warn!("find_node_by_match: no node found matching pattern '{}'", pattern);
+    Ok(None)
 }
 
 /// Parse pw-cli ls output into objects

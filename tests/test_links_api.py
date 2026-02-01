@@ -14,58 +14,7 @@ import pytest
 import requests
 
 
-def find_free_port():
-    """Find a free port to use for testing."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
-
-
-class _TestEnv:
-    """Test environment with API server (internal, not a test class)."""
-    def __init__(self, base_url, process):
-        self.base_url = base_url
-        self.process = process
-
-
-@pytest.fixture(scope="module")
-def test_env():
-    """Start the API server for testing."""
-    port = find_free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    
-    # Build the server if not already built
-    build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    # Start the API server
-    server_path = os.path.join(build_dir, "target/release/pipewire-api")
-    process = subprocess.Popen(
-        [server_path, "--port", str(port), "--localhost"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        preexec_fn=os.setsid
-    )
-    
-    # Wait for server to start
-    max_retries = 30
-    for i in range(max_retries):
-        try:
-            requests.get(f"{base_url}/api/v1/ls", timeout=1)
-            break
-        except requests.exceptions.ConnectionError:
-            time.sleep(0.1)
-    else:
-        process.terminate()
-        raise RuntimeError("Server failed to start")
-    
-    env = _TestEnv(base_url, process)
-    yield env
-    
-    # Cleanup
-    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-    process.wait()
+# Note: test_env fixture is provided by conftest.py (session-scoped)
 
 
 def run_pw_link(*args):

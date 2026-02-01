@@ -150,6 +150,8 @@ impl AppState {
 /// (e.g., speakereq, riaa)
 pub struct NodeState {
     pub node_name: String,
+    /// Optional regex pattern for finding the node (e.g., "speakereq[0-9]x[0-9]")
+    pub node_pattern: Option<String>,
     // Cache for parameters to avoid too many PipeWire calls
     // This is especially important for EQ parameters as external tools rarely change them
     pub cache: Arc<Mutex<Option<HashMap<String, ParameterValue>>>>,
@@ -159,8 +161,35 @@ impl NodeState {
     pub fn new(node_name: String) -> Self {
         Self {
             node_name,
+            node_pattern: None,
             cache: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Create a NodeState with a regex pattern for node matching
+    pub fn with_pattern(node_name: String, pattern: String) -> Self {
+        Self {
+            node_name,
+            node_pattern: Some(pattern),
+            cache: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Get the actual node name (resolves pattern like "speakereq[0-9]x[0-9]" to "speakereq2x2")
+    pub fn get_actual_node_name(&self) -> Result<String, ApiError> {
+        let node = if let Some(ref pattern) = self.node_pattern {
+            crate::pwcli::find_node_by_match(pattern)
+                .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+                .ok_or_else(|| ApiError::NotFound(format!("No node matching pattern '{}' found", pattern)))?
+        } else {
+            crate::pwcli::find_node_by_name(&self.node_name)
+                .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+                .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?
+        };
+        
+        node.properties.get("node.name")
+            .cloned()
+            .ok_or_else(|| ApiError::Internal("Node has no node.name property".to_string()))
     }
 
     // Get parameters using pw-cli (with caching to avoid excessive calls)
@@ -168,17 +197,44 @@ impl NodeState {
     pub fn get_params(&self) -> Result<HashMap<String, ParameterValue>, ApiError> {
         // Check cache first
         if let Some(ref cached) = *self.cache.lock().unwrap() {
+            tracing::debug!("[{}] get_params: returning {} cached params", self.node_name, cached.len());
             return Ok(cached.clone());
         }
 
+        tracing::debug!("[{}] get_params: cache miss, fetching from PipeWire", self.node_name);
+
         // Cache miss - fetch from PipeWire using pw-cli
-        let node = crate::pwcli::find_node_by_name(&self.node_name)
-            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
-            .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?;
+        // Use pattern matching if configured (finds speakereq2x2, speakereq4x4, etc.)
+        let node = if let Some(ref pattern) = self.node_pattern {
+            tracing::debug!("[{}] get_params: using pattern matching '{}'", self.node_name, pattern);
+            crate::pwcli::find_node_by_match(pattern)
+                .map_err(|e| {
+                    tracing::error!("[{}] get_params: find_node_by_match failed: {}", self.node_name, e);
+                    ApiError::Internal(format!("Failed to find node: {}", e))
+                })?
+                .ok_or_else(|| {
+                    tracing::error!("[{}] get_params: no node found with pattern '{}'", self.node_name, pattern);
+                    ApiError::NotFound(format!("No node matching pattern '{}' found", pattern))
+                })?
+        } else {
+            crate::pwcli::find_node_by_name(&self.node_name)
+                .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+                .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?
+        };
+        
+        tracing::debug!("[{}] get_params: found node id={}, name={:?}", 
+            self.node_name, node.id, node.name());
         
         // Use pw-cli to enumerate parameters
         let params = Self::get_params_via_pwcli(node.id)
-            .map_err(|e| ApiError::Internal(format!("Failed to get parameters: {}", e)))?;
+            .map_err(|e| {
+                tracing::error!("[{}] get_params: get_params_via_pwcli failed for node {}: {}", 
+                    self.node_name, node.id, e);
+                ApiError::Internal(format!("Failed to get parameters: {}", e))
+            })?;
+        
+        tracing::debug!("[{}] get_params: got {} params from node {}", 
+            self.node_name, params.len(), node.id);
         
         // Update cache
         *self.cache.lock().unwrap() = Some(params.clone());
@@ -188,8 +244,10 @@ impl NodeState {
 
     /// Force refresh of parameter cache (use if external tools modified parameters)
     pub fn refresh_params_cache(&self) -> Result<(), ApiError> {
+        tracing::debug!("[{}] refresh_params_cache: clearing cache", self.node_name);
         *self.cache.lock().unwrap() = None;
         self.get_params()?; // Reload cache
+        tracing::debug!("[{}] refresh_params_cache: cache reloaded", self.node_name);
         Ok(())
     }
 
@@ -203,9 +261,16 @@ impl NodeState {
     // Helper to set multiple parameters using pw-cli (batched in single call)
     pub fn set_parameters(&self, params: HashMap<String, ParameterValue>) -> Result<(), ApiError> {
         // Find the node ID using pwcli cache
-        let node = crate::pwcli::find_node_by_name(&self.node_name)
-            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
-            .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?;
+        // Use pattern matching if configured (finds speakereq2x2, speakereq4x4, etc.)
+        let node = if let Some(ref pattern) = self.node_pattern {
+            crate::pwcli::find_node_by_match(pattern)
+                .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+                .ok_or_else(|| ApiError::NotFound(format!("No node matching pattern '{}' found", pattern)))?
+        } else {
+            crate::pwcli::find_node_by_name(&self.node_name)
+                .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+                .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?
+        };
         
         // Build the JSON for pw-cli set-param
         Self::set_params_via_pwcli(node.id, params)

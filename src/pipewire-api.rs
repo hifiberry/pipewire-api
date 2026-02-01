@@ -82,7 +82,11 @@ async fn main() -> Result<()> {
     }
 
     // Create node-specific state for modules that manage specific nodes
-    let speakereq_state = Arc::new(NodeState::new("speakereq2x2".to_string()));
+    // speakereq uses pattern matching to find speakereq2x2, speakereq4x4, etc.
+    let speakereq_state = Arc::new(NodeState::with_pattern(
+        "speakereq".to_string(),
+        r"speakereq[0-9]+x[0-9]+".to_string()
+    ));
     let riaa_state = Arc::new(NodeState::new("riaa".to_string()));
     
     // Create router with global api and module-specific endpoints

@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
 Integration tests for the Volume API.
-Tests start the server on a random port and verify volume endpoints.
-Uses a temporary HOME directory to avoid overwriting user config/state files.
+Uses the shared server from conftest.py with temporary HOME directory.
 Verifies volume changes using wpctl and pw-dump.
 """
 
 import subprocess
 import requests
-import time
-import random
-import socket
 import pytest
-import signal
 import os
 import re
 import json
-import tempfile
-import shutil
+import time
+
+
+# Note: test_env fixture is provided by conftest.py (session-scoped with temp HOME)
 
 
 def get_sink_volume_wpctl(sink_id):
@@ -137,171 +134,7 @@ def find_volume_controls():
         return []
 
 
-def find_free_port():
-    """Find a free port above 33000"""
-    for port in range(33000, 34000):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('127.0.0.1', port))
-                return port
-            except OSError:
-                continue
-    raise RuntimeError("No free port found")
-
-
-class VolumeTestEnvironment:
-    """Test environment with isolated HOME directory"""
-    
-    def __init__(self):
-        self.temp_home = None
-        self.original_home = os.environ.get('HOME')
-        self.server_process = None
-        self.base_url = None
-        self.port = None
-        self.build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.initial_volumes = {}
-    
-    def setup(self):
-        """Set up the test environment"""
-        # Create temporary HOME directory
-        self.temp_home = tempfile.mkdtemp(prefix="pipewire_api_test_")
-        
-        # Create config directory structure
-        config_dir = os.path.join(self.temp_home, ".config", "pipewire-api")
-        state_dir = os.path.join(self.temp_home, ".state", "pipewire-api")
-        os.makedirs(config_dir, exist_ok=True)
-        os.makedirs(state_dir, exist_ok=True)
-        
-        # Find a free port
-        self.port = find_free_port()
-        self.base_url = f"http://127.0.0.1:{self.port}"
-        
-        return self
-    
-    def create_volume_config(self, rules):
-        """Create a volume.conf file with the given rules"""
-        config_dir = os.path.join(self.temp_home, ".config", "pipewire-api")
-        config_path = os.path.join(config_dir, "volume.conf")
-        with open(config_path, 'w') as f:
-            json.dump(rules, f, indent=2)
-        return config_path
-    
-    def create_state_file(self, states):
-        """Create a volume.state file with the given states"""
-        state_dir = os.path.join(self.temp_home, ".state", "pipewire-api")
-        state_path = os.path.join(state_dir, "volume.state")
-        with open(state_path, 'w') as f:
-            json.dump(states, f, indent=2)
-        return state_path
-    
-    def read_state_file(self):
-        """Read the current state file"""
-        state_path = os.path.join(self.temp_home, ".state", "pipewire-api", "volume.state")
-        if os.path.exists(state_path):
-            with open(state_path, 'r') as f:
-                return json.load(f)
-        return None
-    
-    def start_server(self):
-        """Start the API server"""
-        server_path = os.path.join(self.build_dir, "target", "release", "pipewire-api")
-        
-        if not os.path.exists(server_path):
-            # Build if not exists
-            subprocess.run(
-                ["cargo", "build", "--release", "--bin", "pipewire-api"],
-                cwd=self.build_dir,
-                check=True,
-                capture_output=True
-            )
-        
-        # Set up environment with temporary HOME
-        env = os.environ.copy()
-        env["HOME"] = self.temp_home
-        env["RUST_LOG"] = "info"
-        
-        self.server_process = subprocess.Popen(
-            [server_path, "-p", str(self.port)],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid
-        )
-        
-        # Wait for server to start
-        for _ in range(30):  # Wait up to 3 seconds
-            time.sleep(0.1)
-            try:
-                response = requests.get(f"{self.base_url}/api/v1/volume", timeout=0.5)
-                if response.status_code == 200:
-                    return True
-            except:
-                pass
-        
-        # Check if server failed
-        if self.server_process.poll() is not None:
-            stdout, stderr = self.server_process.communicate()
-            raise RuntimeError(f"Server failed to start:\nStdout: {stdout.decode()}\nStderr: {stderr.decode()}")
-        
-        return True
-    
-    def stop_server(self):
-        """Stop the API server"""
-        if self.server_process:
-            try:
-                os.killpg(os.getpgid(self.server_process.pid), signal.SIGTERM)
-                self.server_process.wait(timeout=5)
-            except:
-                pass
-            self.server_process = None
-    
-    def save_initial_volumes(self):
-        """Save initial volumes to restore after tests"""
-        try:
-            response = requests.get(f"{self.base_url}/api/v1/volume", timeout=5)
-            if response.status_code == 200:
-                for vol in response.json():
-                    self.initial_volumes[vol["id"]] = vol.get("volume")
-        except Exception as e:
-            print(f"Warning: Could not save initial volumes: {e}")
-    
-    def restore_initial_volumes(self):
-        """Restore volumes to their initial values"""
-        for vol_id, volume in self.initial_volumes.items():
-            if volume is not None:
-                try:
-                    requests.put(
-                        f"{self.base_url}/api/v1/volume/{vol_id}",
-                        json={"volume": volume},
-                        timeout=5
-                    )
-                except:
-                    pass
-    
-    def cleanup(self):
-        """Clean up the test environment"""
-        self.restore_initial_volumes()
-        self.stop_server()
-        
-        # Remove temporary HOME directory
-        if self.temp_home and os.path.exists(self.temp_home):
-            shutil.rmtree(self.temp_home, ignore_errors=True)
-
-
-@pytest.fixture(scope="module")
-def test_env():
-    """Set up and tear down the test environment"""
-    env = VolumeTestEnvironment()
-    env.setup()
-    env.start_server()
-    env.save_initial_volumes()
-    
-    yield env
-    
-    env.cleanup()
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def volume_controls(test_env):
     """Get available volume controls"""
     response = requests.get(f"{test_env.base_url}/api/v1/volume")

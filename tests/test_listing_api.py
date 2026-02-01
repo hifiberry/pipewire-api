@@ -8,80 +8,9 @@ properly formatted JSON responses.
 import pytest
 import requests
 import subprocess
-import time
-import os
-import socket
 
 
-def find_free_port():
-    """Find a free port to use for the test server"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
-
-
-class ListingTestEnvironment:
-    """Test environment for listing API tests"""
-    
-    def __init__(self):
-        self.port = find_free_port()
-        self.base_url = f"http://127.0.0.1:{self.port}"
-        self.server_process = None
-        
-    def start(self):
-        """Start the API server"""
-        build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        binary_path = os.path.join(build_dir, "target", "release", "pipewire-api")
-        
-        # Build if needed
-        subprocess.run(
-            ["cargo", "build", "--release", "--bin", "pipewire-api"],
-            cwd=build_dir,
-            check=True,
-            capture_output=True
-        )
-        
-        # Start server
-        self.server_process = subprocess.Popen(
-            [binary_path, "-p", str(self.port)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=build_dir
-        )
-        
-        # Wait for server to be ready
-        for _ in range(30):
-            try:
-                response = requests.get(f"{self.base_url}/api/v1/ls", timeout=1)
-                if response.status_code == 200:
-                    return True
-            except requests.exceptions.ConnectionError:
-                pass
-            time.sleep(0.2)
-        
-        return False
-    
-    def stop(self):
-        """Stop the API server"""
-        if self.server_process:
-            self.server_process.terminate()
-            try:
-                self.server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.server_process.kill()
-            self.server_process = None
-
-
-@pytest.fixture(scope="module")
-def test_env():
-    """Fixture providing a test environment with running server"""
-    env = ListingTestEnvironment()
-    if not env.start():
-        pytest.skip("Could not start API server")
-    yield env
-    env.stop()
+# Note: test_env fixture is provided by conftest.py (session-scoped)
 
 
 class TestListAll:

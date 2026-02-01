@@ -1,57 +1,10 @@
 import requests
 import pytest
 import subprocess
-import os
-import time
-import signal
-import socket
 from pipewire_utils import get_pipewire_param, verify_param_set
 
 
-def find_free_port():
-    """Find an available port for the test server"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        return s.getsockname()[1]
-
-
-@pytest.fixture(scope="module")
-def api_server():
-    """Start the API server for testing"""
-    port = find_free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    
-    # Build the server if not already built
-    build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    subprocess.run(
-        ["cargo", "build", "--release", "--bin", "pipewire-api"],
-        cwd=build_dir,
-        check=True,
-        capture_output=True
-    )
-    
-    # Start the server
-    server_path = os.path.join(build_dir, "target", "release", "pipewire-api")
-    process = subprocess.Popen(
-        [server_path, "--port", str(port), "--localhost"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        preexec_fn=os.setsid
-    )
-    
-    # Wait for server to start
-    time.sleep(1.0)
-    
-    # Check if server is running
-    if process.poll() is not None:
-        stdout, stderr = process.communicate()
-        raise RuntimeError(f"Server failed to start:\nStdout: {stdout.decode()}\nStderr: {stderr.decode()}")
-    
-    yield base_url
-    
-    # Cleanup: kill the server
-    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-    process.wait(timeout=5)
+# Note: api_server fixture is provided by conftest.py (session-scoped)
 
 
 def find_riaa_node(base_url):

@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::collections::HashMap;
 use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
@@ -18,6 +19,41 @@ const EQ_TYPE_HIGH_PASS: i32 = 5;
 const EQ_TYPE_BAND_PASS: i32 = 6;
 const EQ_TYPE_NOTCH: i32 = 7;
 const EQ_TYPE_ALL_PASS: i32 = 8;
+
+/// Helper to get the actual plugin name prefix from parameters
+/// Returns the prefix like "speakereq2x2" from parameter names like "speakereq2x2:Enable"
+fn get_plugin_prefix(params: &HashMap<String, ParameterValue>) -> String {
+    // Find any parameter key that contains a colon and extract the prefix
+    for key in params.keys() {
+        if let Some(colon_pos) = key.find(':') {
+            let prefix = &key[..colon_pos];
+            if prefix.starts_with("speakereq") {
+                return prefix.to_string();
+            }
+        }
+    }
+    // Default fallback
+    "speakereq2x2".to_string()
+}
+
+/// Helper to create a prefixed parameter key
+fn pkey(prefix: &str, param: &str) -> String {
+    format!("{}:{}", prefix, param)
+}
+
+/// Count EQ slots for a given block by probing parameters
+fn count_eq_slots(params: &HashMap<String, ParameterValue>, prefix: &str, block: &str) -> u32 {
+    let mut slots = 0u32;
+    for band in 1..=100 {
+        let key = pkey(prefix, &format!("{}_eq_{}_type", block, band));
+        if params.contains_key(&key) {
+            slots = band;
+        } else {
+            break;
+        }
+    }
+    slots
+}
 
 // API Models
 #[derive(Debug, Serialize, Deserialize)]
@@ -148,15 +184,16 @@ fn eq_type_from_string(type_str: &str) -> Result<i32, ApiError> {
 // Handlers
 pub async fn get_structure(State(state): State<Arc<NodeState>>) -> Result<Json<StructureResponse>, ApiError> {
     let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
     
-    let enabled = params.get("speakereq2x2:Enable")
+    let enabled = params.get(&pkey(&prefix, "Enable"))
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
         })
         .unwrap_or(false);
     
-    let licensed = params.get("speakereq2x2:Licensed")
+    let licensed = params.get(&pkey(&prefix, "Licensed"))
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
@@ -164,7 +201,7 @@ pub async fn get_structure(State(state): State<Arc<NodeState>>) -> Result<Json<S
         .unwrap_or(true);
     
     Ok(Json(StructureResponse {
-        name: "speakereq2x2".to_string(),
+        name: prefix.clone(),
         version: "1.0".to_string(),
         blocks: vec![
             Block { id: "input_0".to_string(), block_type: "eq".to_string(), slots: 20 },
@@ -192,9 +229,17 @@ pub async fn get_io() -> Json<IoResponse> {
 
 /// Get plugin configuration by probing available parameters from PipeWire
 pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serde_json::Value>, ApiError> {
+    tracing::debug!("speakereq::get_config: starting");
+    
     // Force refresh to ensure we have all parameters
     state.refresh_params_cache()?;
     let params = state.get_params()?;
+    
+    tracing::debug!("speakereq::get_config: got {} params", params.len());
+    
+    let prefix = get_plugin_prefix(&params);
+    tracing::debug!("speakereq::get_config: prefix='{}', sample params: {:?}", 
+        prefix, params.keys().take(5).collect::<Vec<_>>());
     
     // Probe for number of inputs/outputs by checking crossbar parameters
     // Crossbar uses xbar_{input}_to_{output} format
@@ -203,7 +248,7 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serd
     
     // Count inputs by checking xbar_N_to_0 parameters
     for i in 0..16 {
-        let key = format!("speakereq2x2:xbar_{}_to_0", i);
+        let key = pkey(&prefix, &format!("xbar_{}_to_0", i));
         if params.contains_key(&key) {
             inputs = i + 1;
         } else {
@@ -213,7 +258,7 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serd
     
     // Count outputs by checking xbar_0_to_N parameters  
     for j in 0..16 {
-        let key = format!("speakereq2x2:xbar_0_to_{}", j);
+        let key = pkey(&prefix, &format!("xbar_0_to_{}", j));
         if params.contains_key(&key) {
             outputs = j + 1;
         } else {
@@ -221,21 +266,15 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serd
         }
     }
     
-    // Probe for number of EQ slots per block by checking which bands exist
+    tracing::debug!("speakereq::get_config: detected inputs={}, outputs={}", inputs, outputs);
+    
+    // Probe for number of EQ slots per block using shared helper
     let mut eq_slots = std::collections::HashMap::new();
     
-    // Discover EQ blocks dynamically by trying common patterns
+    // Discover EQ blocks dynamically
     for i in 0..inputs {
         let block = format!("input_{}", i);
-        let mut slots = 0u32;
-        for band in 1..=100 {
-            let key = format!("speakereq2x2:{}_eq_{}_type", block, band);
-            if params.contains_key(&key) {
-                slots = band;
-            } else {
-                break;
-            }
-        }
+        let slots = count_eq_slots(&params, &prefix, &block);
         if slots > 0 {
             eq_slots.insert(block, slots);
         }
@@ -243,15 +282,7 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serd
     
     for j in 0..outputs {
         let block = format!("output_{}", j);
-        let mut slots = 0u32;
-        for band in 1..=100 {
-            let key = format!("speakereq2x2:{}_eq_{}_type", block, band);
-            if params.contains_key(&key) {
-                slots = band;
-            } else {
-                break;
-            }
-        }
+        let slots = count_eq_slots(&params, &prefix, &block);
         if slots > 0 {
             eq_slots.insert(block, slots);
         }
@@ -261,7 +292,7 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<serd
         "inputs": inputs,
         "outputs": outputs,
         "eq_slots": eq_slots,
-        "plugin_name": "speakereq2x2",
+        "plugin_name": prefix,
         "method": "probed_from_parameters"
     })))
 }
@@ -271,12 +302,13 @@ pub async fn get_eq_band(
     Path((block, band)): Path<(String, u32)>,
 ) -> Result<Json<EqBand>, ApiError> {
     let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
     
-    let type_key = format!("speakereq2x2:{}_eq_{}_type", block, band);
-    let freq_key = format!("speakereq2x2:{}_eq_{}_f", block, band);
-    let q_key = format!("speakereq2x2:{}_eq_{}_q", block, band);
-    let gain_key = format!("speakereq2x2:{}_eq_{}_gain", block, band);
-    let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block, band);
+    let type_key = pkey(&prefix, &format!("{}_eq_{}_type", block, band));
+    let freq_key = pkey(&prefix, &format!("{}_eq_{}_f", block, band));
+    let q_key = pkey(&prefix, &format!("{}_eq_{}_q", block, band));
+    let gain_key = pkey(&prefix, &format!("{}_eq_{}_gain", block, band));
+    let enabled_key = pkey(&prefix, &format!("{}_eq_{}_enabled", block, band));
     
     let eq_type = params.get(&type_key)
         .and_then(|v| match v {
@@ -344,12 +376,16 @@ pub async fn set_eq_band(
     
     let type_id = eq_type_from_string(&eq_band.eq_type)?;
     
-    // Build parameter keys with speakereq2x2 prefix
-    let type_key = format!("speakereq2x2:{}_eq_{}_type", block, band);
-    let freq_key = format!("speakereq2x2:{}_eq_{}_f", block, band);
-    let q_key = format!("speakereq2x2:{}_eq_{}_q", block, band);
-    let gain_key = format!("speakereq2x2:{}_eq_{}_gain", block, band);
-    let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block, band);
+    // Get prefix from existing params
+    let existing_params = state.get_params()?;
+    let prefix = get_plugin_prefix(&existing_params);
+    
+    // Build parameter keys with dynamic prefix
+    let type_key = pkey(&prefix, &format!("{}_eq_{}_type", block, band));
+    let freq_key = pkey(&prefix, &format!("{}_eq_{}_f", block, band));
+    let q_key = pkey(&prefix, &format!("{}_eq_{}_q", block, band));
+    let gain_key = pkey(&prefix, &format!("{}_eq_{}_gain", block, band));
+    let enabled_key = pkey(&prefix, &format!("{}_eq_{}_enabled", block, band));
     
     // Batch all parameters into a single pw-cli call
     let mut params = std::collections::HashMap::new();
@@ -372,10 +408,20 @@ pub async fn clear_eq_bank(
     State(state): State<Arc<NodeState>>,
     Path(block): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Clear all 20 EQ bands by setting them to "off" (type = 0) in a single call
+    // Get prefix from existing params
+    let existing_params = state.get_params()?;
+    let prefix = get_plugin_prefix(&existing_params);
+    
+    // Dynamically count EQ slots for this block
+    let slots = count_eq_slots(&existing_params, &prefix, &block);
+    if slots == 0 {
+        return Err(ApiError::NotFound(format!("No EQ bands found for block {}", block)));
+    }
+    
+    // Clear all EQ bands by setting them to "off" (type = 0) in a single call
     let mut params = std::collections::HashMap::new();
-    for band in 1..=20 {
-        let type_key = format!("speakereq2x2:{}_eq_{}_type", block, band);
+    for band in 1..=slots {
+        let type_key = pkey(&prefix, &format!("{}_eq_{}_type", block, band));
         params.insert(type_key, crate::parameters::ParameterValue::Int(0));
     }
     
@@ -383,14 +429,16 @@ pub async fn clear_eq_bank(
     
     Ok(Json(serde_json::json!({
         "block": block,
-        "message": "All EQ bands cleared"
+        "slots_cleared": slots,
+        "message": format!("All {} EQ bands cleared", slots)
     })))
 }
 
 pub async fn get_master_gain(State(state): State<Arc<NodeState>>) -> Result<Json<GainValue>, ApiError> {
     let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
     
-    let gain = params.get("speakereq2x2:master_gain_db")
+    let gain = params.get(&pkey(&prefix, "master_gain_db"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             ParameterValue::Int(i) => Some(*i as f32),
@@ -416,8 +464,9 @@ pub async fn set_master_gain(
 
 pub async fn get_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
     
-    let enabled = params.get("speakereq2x2:Enable")
+    let enabled = params.get(&pkey(&prefix, "Enable"))
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
@@ -441,7 +490,10 @@ pub async fn set_eq_band_enabled(
     Path((block, band)): Path<(String, u32)>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<EnableValue>, ApiError> {
-    let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block, band);
+    let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
+    
+    let enabled_key = pkey(&prefix, &format!("{}_eq_{}_enabled", block, band));
     state.set_parameter(&enabled_key, ParameterValue::Bool(enable_value.enabled))?;
     
     Ok(Json(enable_value))
@@ -449,9 +501,10 @@ pub async fn set_eq_band_enabled(
 
 pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<StatusResponse>, ApiError> {
     let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
     
     // Get enable status
-    let enabled = params.get("speakereq2x2:Enable")
+    let enabled = params.get(&pkey(&prefix, "Enable"))
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
@@ -459,7 +512,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         .unwrap_or(false);
     
     // Get master gain
-    let master_gain_db = params.get("speakereq2x2:master_gain_db")
+    let master_gain_db = params.get(&pkey(&prefix, "master_gain_db"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
@@ -467,7 +520,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         .unwrap_or(0.0);
     
     // Get crossbar matrix
-    let xbar_0_to_0 = params.get("speakereq2x2:xbar_0_to_0")
+    let xbar_0_to_0 = params.get(&pkey(&prefix, "xbar_0_to_0"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             ParameterValue::Int(i) => Some(*i as f32),
@@ -475,7 +528,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         })
         .unwrap_or(1.0);
     
-    let xbar_0_to_1 = params.get("speakereq2x2:xbar_0_to_1")
+    let xbar_0_to_1 = params.get(&pkey(&prefix, "xbar_0_to_1"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             ParameterValue::Int(i) => Some(*i as f32),
@@ -483,7 +536,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         })
         .unwrap_or(0.0);
     
-    let xbar_1_to_0 = params.get("speakereq2x2:xbar_1_to_0")
+    let xbar_1_to_0 = params.get(&pkey(&prefix, "xbar_1_to_0"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             ParameterValue::Int(i) => Some(*i as f32),
@@ -491,7 +544,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         })
         .unwrap_or(0.0);
     
-    let xbar_1_to_1 = params.get("speakereq2x2:xbar_1_to_1")
+    let xbar_1_to_1 = params.get(&pkey(&prefix, "xbar_1_to_1"))
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             ParameterValue::Int(i) => Some(*i as f32),
@@ -506,10 +559,10 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         input_1_to_output_1: xbar_1_to_1,
     };
     
-    // Helper function to get block status
-    let get_block_status = |block_id: &str, block_type: &str, has_delay: bool| -> Result<BlockStatus, ApiError> {
+    // Helper function to get block status - capture prefix
+    let get_block_status = |block_id: &str, block_type: &str, has_delay: bool, prefix: &str| -> Result<BlockStatus, ApiError> {
         // Get gain
-        let gain_key = format!("speakereq2x2:{}_gain_db", block_id);
+        let gain_key = pkey(prefix, &format!("{}_gain_db", block_id));
         let gain_db = params.get(&gain_key)
             .and_then(|v| match v {
                 ParameterValue::Float(f) => Some(*f),
@@ -519,7 +572,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         
         // Get delay (only for output blocks)
         let delay_ms = if has_delay {
-            let delay_key = format!("speakereq2x2:delay_{}_ms", block_id.split('_').last().unwrap_or("0"));
+            let delay_key = pkey(prefix, &format!("delay_{}_ms", block_id.split('_').last().unwrap_or("0")));
             params.get(&delay_key)
                 .and_then(|v| match v {
                     ParameterValue::Float(f) => Some(*f),
@@ -533,10 +586,10 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
         // Get all EQ bands (assuming 20 bands)
         let mut eq_bands = Vec::new();
         for band in 1..=20 {
-            let type_key = format!("speakereq2x2:{}_eq_{}_type", block_id, band);
-            let freq_key = format!("speakereq2x2:{}_eq_{}_f", block_id, band);
-            let q_key = format!("speakereq2x2:{}_eq_{}_q", block_id, band);
-            let gain_key = format!("speakereq2x2:{}_eq_{}_gain", block_id, band);
+            let type_key = pkey(prefix, &format!("{}_eq_{}_type", block_id, band));
+            let freq_key = pkey(prefix, &format!("{}_eq_{}_f", block_id, band));
+            let q_key = pkey(prefix, &format!("{}_eq_{}_q", block_id, band));
+            let gain_key = pkey(prefix, &format!("{}_eq_{}_gain", block_id, band));
             
             let eq_type_id = params.get(&type_key)
                 .and_then(|v| match v {
@@ -566,7 +619,7 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
                 })
                 .unwrap_or(0.0);
             
-            let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block_id, band);
+            let enabled_key = pkey(prefix, &format!("{}_eq_{}_enabled", block_id, band));
             let band_enabled = params.get(&enabled_key)
                 .and_then(|v| match v {
                     ParameterValue::Bool(b) => Some(*b),
@@ -597,13 +650,13 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
     
     // Get all blocks
     let inputs = vec![
-        get_block_status("input_0", "input", false)?,
-        get_block_status("input_1", "input", false)?,
+        get_block_status("input_0", "input", false, &prefix)?,
+        get_block_status("input_1", "input", false, &prefix)?,
     ];
     
     let outputs = vec![
-        get_block_status("output_0", "output", true)?,
-        get_block_status("output_1", "output", true)?,
+        get_block_status("output_0", "output", true, &prefix)?,
+        get_block_status("output_1", "output", true, &prefix)?,
     ];
     
     Ok(Json(StatusResponse {
