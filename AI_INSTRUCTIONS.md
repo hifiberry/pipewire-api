@@ -40,6 +40,10 @@ This project provides a REST API server and command-line tools for controlling P
 - Verify systemd service functionality
 - Run the server with `RUST_LOG=info cargo run` to see debug output
 
+## Others
+- never put IP addresses ad/or password into files that are managed by git
+- do not send any passwords to the AI agent. If password are required, use password files (e.g. sshpass -f)
+
 ### Running Python API Tests
 
 The project includes comprehensive Python-based API tests in the `tests/` directory.
@@ -72,6 +76,26 @@ The test framework automatically:
 - Cleans up after completion
 
 **Note:** Tests use session-scoped fixtures, so all tests share the same server instance for efficiency.
+
+### Running Tests Against a Remote Server
+
+To test a deployed API server on a remote system:
+
+```bash
+# Run tests against a remote server
+python3 tests/test_remote.py http://X.X.X.X:2716
+
+# With verbose output
+python3 tests/test_remote.py http://x.x.x.x:2716 -v
+
+# Run specific test file
+python3 tests/test_remote.py http://x.x.x.x:2716 tests/test_speakereq.py
+```
+
+Tests marked with `@pytest.mark.local_only` are automatically skipped when running against a remote server. These are tests that:
+- Verify parameters directly via pw-cli
+- Access local state files
+- Require restarting the server
 
 ## Development
 
