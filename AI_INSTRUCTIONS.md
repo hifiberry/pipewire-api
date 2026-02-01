@@ -25,6 +25,7 @@ This project provides a REST API server and command-line tools for controlling P
 - Use idiomatic Rust patterns
 - Prefer immutability where possible
 - Use proper error handling with Result types
+- **Files should not exceed 1000 lines** - if a file grows beyond this, refactor it by splitting into separate modules with distinct functional blocks
 
 ## Build System
 
