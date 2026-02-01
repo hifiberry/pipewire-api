@@ -1,3 +1,16 @@
+pipewire-api (2.0.1-1) stable; urgency=medium
+
+  * Fixed flaky speakereq tests caused by non-deterministic node lookup
+  * Replaced find_node_by_prefix with find_node_by_match using regex patterns
+  * SpeakerEQ node lookup now uses pattern "speakereq[0-9]+x[0-9]+" to avoid
+    matching stream nodes like "speakereq2x2.output"
+  * Added node_pattern field to NodeState for configurable regex matching
+  * Removed unused native PipeWire API code (pipewire_client.rs, pod_parser.rs)
+  * Removed pipewire, libspa, libspa-sys dependencies from Cargo.toml
+  * All 105 Python API tests passing consistently
+
+ -- HiFiBerry <info@hifiberry.com>  Sat, 01 Feb 2026 16:00:00 +0100
+
 pipewire-api (2.0.0-1) stable; urgency=medium
 
   * MAJOR VERSION: Breaking API and architecture changes
