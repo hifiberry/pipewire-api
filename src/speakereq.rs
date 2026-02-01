@@ -190,6 +190,82 @@ pub async fn get_io() -> Json<IoResponse> {
     })
 }
 
+/// Get plugin configuration by probing available parameters from PipeWire
+pub async fn get_config(State(state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, ApiError> {
+    // Force refresh to ensure we have all parameters
+    state.refresh_params_cache()?;
+    let params = state.get_params()?;
+    
+    // Probe for number of inputs/outputs by checking crossbar parameters
+    // Crossbar uses xbar_{input}_to_{output} format
+    let mut inputs = 0u32;
+    let mut outputs = 0u32;
+    
+    // Count inputs by checking xbar_N_to_0 parameters
+    for i in 0..16 {
+        let key = format!("speakereq2x2:xbar_{}_to_0", i);
+        if params.contains_key(&key) {
+            inputs = i + 1;
+        } else {
+            break;
+        }
+    }
+    
+    // Count outputs by checking xbar_0_to_N parameters  
+    for j in 0..16 {
+        let key = format!("speakereq2x2:xbar_0_to_{}", j);
+        if params.contains_key(&key) {
+            outputs = j + 1;
+        } else {
+            break;
+        }
+    }
+    
+    // Probe for number of EQ slots per block by checking which bands exist
+    let mut eq_slots = std::collections::HashMap::new();
+    
+    // Discover EQ blocks dynamically by trying common patterns
+    for i in 0..inputs {
+        let block = format!("input_{}", i);
+        let mut slots = 0u32;
+        for band in 1..=100 {
+            let key = format!("speakereq2x2:{}_eq_{}_type", block, band);
+            if params.contains_key(&key) {
+                slots = band;
+            } else {
+                break;
+            }
+        }
+        if slots > 0 {
+            eq_slots.insert(block, slots);
+        }
+    }
+    
+    for j in 0..outputs {
+        let block = format!("output_{}", j);
+        let mut slots = 0u32;
+        for band in 1..=100 {
+            let key = format!("speakereq2x2:{}_eq_{}_type", block, band);
+            if params.contains_key(&key) {
+                slots = band;
+            } else {
+                break;
+            }
+        }
+        if slots > 0 {
+            eq_slots.insert(block, slots);
+        }
+    }
+    
+    Ok(Json(serde_json::json!({
+        "inputs": inputs,
+        "outputs": outputs,
+        "eq_slots": eq_slots,
+        "plugin_name": "speakereq2x2",
+        "method": "probed_from_parameters"
+    })))
+}
+
 pub async fn get_eq_band(
     State(state): State<Arc<AppState>>,
     Path((block, band)): Path<(String, u32)>,
@@ -543,6 +619,7 @@ pub async fn get_status(State(state): State<Arc<AppState>>) -> Result<Json<Statu
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/module/speakereq/structure", get(get_structure))
+        .route("/api/module/speakereq/config", get(get_config))
         .route("/api/module/speakereq/io", get(get_io))
         .route("/api/module/speakereq/status", get(get_status))
         .route("/api/module/speakereq/eq/:block/:band", get(get_eq_band).put(set_eq_band))

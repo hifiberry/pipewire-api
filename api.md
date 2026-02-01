@@ -492,6 +492,30 @@ Returns the number of inputs and outputs.
 }
 ```
 
+#### Get Plugin Configuration (Dynamic)
+```
+GET /module/speakereq/config
+```
+Dynamically discovers the plugin configuration by probing available parameters from PipeWire. This endpoint queries the actual plugin to determine inputs, outputs, and EQ slots rather than using hardcoded values.
+
+**Response:**
+```json
+{
+  "inputs": 2,
+  "outputs": 2,
+  "eq_slots": {
+    "input_0": 20,
+    "input_1": 20,
+    "output_0": 20,
+    "output_1": 20
+  },
+  "plugin_name": "speakereq2x2",
+  "method": "probed_from_parameters"
+}
+```
+
+**Note:** This endpoint probes PipeWire parameters to discover configuration. The `method` field indicates how the configuration was determined. This is useful for verifying the actual plugin capabilities or adapting to different plugin variants.
+
 #### Get Complete Status
 ```
 GET /module/speakereq/status
