@@ -1,3 +1,21 @@
+pipewire-api (2.0.0-1) stable; urgency=medium
+
+  * MAJOR VERSION: Breaking API and architecture changes
+  * Replaced native PipeWire API with CLI tools for all operations
+  * Volume control now uses wpctl instead of native API
+  * Link management now uses pwlink instead of native API
+  * Parameter operations now use pw-cli instead of native API
+  * Removed filtered /ls endpoints (/ls/nodes, /ls/devices, etc.)
+  * Moved SpeakerEQ API from /api/v1/speakereq to /api/module/speakereq
+  * Added parameter caching with /api/module/speakereq/refresh endpoint
+  * Added /api/module/speakereq/default endpoint to reset all parameters
+  * Fixed pw-cli parameter format to use array structure for SPA Structs
+  * Improved error handling and validation throughout API
+  * Enhanced documentation with complete API examples
+  * All Python API tests passing (89 tests)
+
+ -- HiFiBerry <info@hifiberry.com>  Sat, 01 Feb 2026 14:00:00 +0100
+
 pipewire-api (1.0.9-1) stable; urgency=medium
 
   * New unified volume API supporting both devices and sinks

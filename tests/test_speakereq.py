@@ -645,31 +645,62 @@ def test_refresh_cache_after_external_change(api_server):
 
 def test_set_default(api_server):
     """Test setting all parameters to default values"""
-    # First, set some non-default values
+    node_id = find_speakereq_node()
+    if node_id is None:
+        pytest.skip("speakereq2x2 node not found")
     
-    # Set master gain to non-zero
-    requests.put(
+    # First, set some non-default values and verify they're set
+    
+    # 1. Set master gain to non-zero
+    response = requests.put(
         f"{api_server}/api/module/speakereq/gain/master",
         json={"gain": -5.0}
     )
+    assert response.status_code == 200
+    response = requests.get(f"{api_server}/api/module/speakereq/gain/master")
+    assert response.json()["gain"] == -5.0, "Master gain not set to -5.0"
     
-    # Set an EQ band to something other than off
-    requests.put(
-        f"{api_server}/api/module/speakereq/eq/input_0/1",
-        json={
-            "type": "peaking",
-            "frequency": 1000.0,
-            "q": 2.0,
-            "gain": 6.0,
-            "enabled": True
-        }
-    )
+    # 2. Set multiple EQ bands to non-default values
+    for block in ["input_0", "output_1"]:
+        for band in [1, 5, 10]:
+            response = requests.put(
+                f"{api_server}/api/module/speakereq/eq/{block}/{band}",
+                json={
+                    "type": "peaking",
+                    "frequency": 2000.0,
+                    "q": 2.5,
+                    "gain": 6.0,
+                    "enabled": True
+                }
+            )
+            assert response.status_code == 200
     
-    # Set enable to false
+    # Verify EQ was set
+    response = requests.get(f"{api_server}/api/module/speakereq/eq/input_0/1")
+    assert response.json()["type"] == "peaking", "EQ not set to peaking"
+    
+    # 3. Set crossbar to non-identity values using pw-cli directly
+    subprocess.run([
+        "pw-cli", "set-param", str(node_id), "Props",
+        '{ "params": ["speakereq2x2:xbar_0_to_0", 0.5, "speakereq2x2:xbar_0_to_1", 0.7, "speakereq2x2:xbar_1_to_0", 0.3, "speakereq2x2:xbar_1_to_1", 0.8] }'
+    ], check=True, capture_output=True)
+    
+    # Force cache refresh to see crossbar changes
+    requests.post(f"{api_server}/api/module/speakereq/refresh")
+    
+    # Verify crossbar is NOT identity before default
+    response = requests.get(f"{api_server}/api/module/speakereq/status")
+    status = response.json()
+    assert status["crossbar"]["input_0_to_output_0"] == 0.5, "Crossbar not set to non-default"
+    assert status["crossbar"]["input_0_to_output_1"] == 0.7, "Crossbar not set to non-default"
+    
+    # 4. Set enable to false
     requests.put(
         f"{api_server}/api/module/speakereq/enable",
         json={"enabled": False}
     )
+    response = requests.get(f"{api_server}/api/module/speakereq/enable")
+    assert response.json()["enabled"] == False, "Enable not set to false"
     
     # Now call the default endpoint
     response = requests.post(f"{api_server}/api/module/speakereq/default")
@@ -679,31 +710,35 @@ def test_set_default(api_server):
     assert data["status"] == "ok"
     assert "message" in data
     
+    # Verify all defaults are set correctly
+    
     # Verify master gain is 0dB
     response = requests.get(f"{api_server}/api/module/speakereq/gain/master")
     assert response.status_code == 200
-    assert response.json()["gain"] == 0.0
+    assert response.json()["gain"] == 0.0, "Master gain not reset to 0dB"
     
-    # Verify EQ band is set to off
-    response = requests.get(f"{api_server}/api/module/speakereq/eq/input_0/1")
-    assert response.status_code == 200
-    eq_data = response.json()
-    assert eq_data["type"] == "off"
-    assert eq_data["enabled"] == True
+    # Verify all EQ bands are set to off
+    for block in ["input_0", "input_1", "output_0", "output_1"]:
+        for band in [1, 5, 10, 20]:
+            response = requests.get(f"{api_server}/api/module/speakereq/eq/{block}/{band}")
+            assert response.status_code == 200
+            eq_data = response.json()
+            assert eq_data["type"] == "off", f"EQ {block}/{band} not set to off"
+            assert eq_data["enabled"] == True, f"EQ {block}/{band} enabled not set to true"
     
     # Verify enable is true
     response = requests.get(f"{api_server}/api/module/speakereq/enable")
     assert response.status_code == 200
-    assert response.json()["enabled"] == True
+    assert response.json()["enabled"] == True, "Enable not reset to true"
     
-    # Verify crossbar is identity matrix via status
+    # Verify crossbar is identity matrix
     response = requests.get(f"{api_server}/api/module/speakereq/status")
     assert response.status_code == 200
     status = response.json()
-    assert status["crossbar"]["input_0_to_output_0"] == 1.0
-    assert status["crossbar"]["input_0_to_output_1"] == 0.0
-    assert status["crossbar"]["input_1_to_output_0"] == 0.0
-    assert status["crossbar"]["input_1_to_output_1"] == 1.0
+    assert status["crossbar"]["input_0_to_output_0"] == 1.0, "Crossbar [0,0] not 1.0"
+    assert status["crossbar"]["input_0_to_output_1"] == 0.0, "Crossbar [0,1] not 0.0"
+    assert status["crossbar"]["input_1_to_output_0"] == 0.0, "Crossbar [1,0] not 0.0"
+    assert status["crossbar"]["input_1_to_output_1"] == 1.0, "Crossbar [1,1] not 1.0"
 
 
 if __name__ == "__main__":

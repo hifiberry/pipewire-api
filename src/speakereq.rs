@@ -8,6 +8,17 @@ use std::sync::Arc;
 use crate::api_server::{ApiError, AppState};
 use crate::parameters::ParameterValue;
 
+// EQ type constants
+const EQ_TYPE_OFF: i32 = 0;
+const EQ_TYPE_LOW_SHELF: i32 = 1;
+const EQ_TYPE_HIGH_SHELF: i32 = 2;
+const EQ_TYPE_PEAKING: i32 = 3;
+const EQ_TYPE_LOW_PASS: i32 = 4;
+const EQ_TYPE_HIGH_PASS: i32 = 5;
+const EQ_TYPE_BAND_PASS: i32 = 6;
+const EQ_TYPE_NOTCH: i32 = 7;
+const EQ_TYPE_ALL_PASS: i32 = 8;
+
 // API Models
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StructureResponse {
@@ -106,30 +117,30 @@ pub struct StatusResponse {
 // EQ type mapping
 fn eq_type_to_string(type_id: i32) -> String {
     match type_id {
-        0 => "off".to_string(),
-        1 => "low_shelf".to_string(),
-        2 => "high_shelf".to_string(),
-        3 => "peaking".to_string(),
-        4 => "low_pass".to_string(),
-        5 => "high_pass".to_string(),
-        6 => "band_pass".to_string(),
-        7 => "notch".to_string(),
-        8 => "all_pass".to_string(),
+        EQ_TYPE_OFF => "off".to_string(),
+        EQ_TYPE_LOW_SHELF => "low_shelf".to_string(),
+        EQ_TYPE_HIGH_SHELF => "high_shelf".to_string(),
+        EQ_TYPE_PEAKING => "peaking".to_string(),
+        EQ_TYPE_LOW_PASS => "low_pass".to_string(),
+        EQ_TYPE_HIGH_PASS => "high_pass".to_string(),
+        EQ_TYPE_BAND_PASS => "band_pass".to_string(),
+        EQ_TYPE_NOTCH => "notch".to_string(),
+        EQ_TYPE_ALL_PASS => "all_pass".to_string(),
         _ => format!("unknown_{}", type_id),
     }
 }
 
 fn eq_type_from_string(type_str: &str) -> Result<i32, ApiError> {
     match type_str.to_lowercase().as_str() {
-        "off" => Ok(0),
-        "low_shelf" => Ok(1),
-        "high_shelf" => Ok(2),
-        "peaking" => Ok(3),
-        "low_pass" => Ok(4),
-        "high_pass" => Ok(5),
-        "band_pass" => Ok(6),
-        "notch" => Ok(7),
-        "all_pass" => Ok(8),
+        "off" => Ok(EQ_TYPE_OFF),
+        "low_shelf" => Ok(EQ_TYPE_LOW_SHELF),
+        "high_shelf" => Ok(EQ_TYPE_HIGH_SHELF),
+        "peaking" => Ok(EQ_TYPE_PEAKING),
+        "low_pass" => Ok(EQ_TYPE_LOW_PASS),
+        "high_pass" => Ok(EQ_TYPE_HIGH_PASS),
+        "band_pass" => Ok(EQ_TYPE_BAND_PASS),
+        "notch" => Ok(EQ_TYPE_NOTCH),
+        "all_pass" => Ok(EQ_TYPE_ALL_PASS),
         _ => Err(ApiError::BadRequest(format!("Invalid EQ type: {}", type_str))),
     }
 }
@@ -559,32 +570,51 @@ pub async fn set_default(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     use std::collections::HashMap;
+    
+    // Get structure to determine inputs, outputs, and EQ slots dynamically
+    let structure = get_structure(State(state.clone())).await?;
+    let structure_data = structure.0;
+    
+    let inputs = structure_data.inputs;
+    let outputs = structure_data.outputs;
+    
+    // Find EQ blocks and their slot counts
+    let mut eq_blocks = Vec::new();
+    for block in &structure_data.blocks {
+        if block.block_type == "eq" {
+            eq_blocks.push((block.id.clone(), block.slots));
+        }
+    }
+    
     let mut params = HashMap::new();
     
     // Set all gains to 0dB
     params.insert("master_gain_db".to_string(), ParameterValue::Float(0.0));
-    params.insert("input_0_gain_db".to_string(), ParameterValue::Float(0.0));
-    params.insert("input_1_gain_db".to_string(), ParameterValue::Float(0.0));
-    params.insert("output_0_gain_db".to_string(), ParameterValue::Float(0.0));
-    params.insert("output_1_gain_db".to_string(), ParameterValue::Float(0.0));
+    for i in 0..inputs {
+        params.insert(format!("input_{}_gain_db", i), ParameterValue::Float(0.0));
+    }
+    for i in 0..outputs {
+        params.insert(format!("output_{}_gain_db", i), ParameterValue::Float(0.0));
+    }
     
     // Set crossbar matrix to identity (1 on diagonal, 0 elsewhere)
-    params.insert("xbar_0_to_0".to_string(), ParameterValue::Float(1.0));
-    params.insert("xbar_0_to_1".to_string(), ParameterValue::Float(0.0));
-    params.insert("xbar_1_to_0".to_string(), ParameterValue::Float(0.0));
-    params.insert("xbar_1_to_1".to_string(), ParameterValue::Float(1.0));
+    for i in 0..inputs {
+        for j in 0..outputs {
+            let value = if i == j { 1.0 } else { 0.0 };
+            params.insert(format!("xbar_{}_to_{}", i, j), ParameterValue::Float(value));
+        }
+    }
     
-    // Set all EQ bands to "off" (type 0) for all blocks
-    let blocks = ["input_0", "input_1", "output_0", "output_1"];
-    for block in &blocks {
-        for band in 1..=20 {
-            let type_key = format!("{}_eq_{}_type", block, band);
-            let freq_key = format!("{}_eq_{}_f", block, band);
-            let q_key = format!("{}_eq_{}_q", block, band);
-            let gain_key = format!("{}_eq_{}_gain", block, band);
-            let enabled_key = format!("{}_eq_{}_enabled", block, band);
+    // Set all EQ bands to "off" for all EQ blocks
+    for (block_id, slots) in eq_blocks {
+        for band in 1..=slots {
+            let type_key = format!("{}_eq_{}_type", block_id, band);
+            let freq_key = format!("{}_eq_{}_f", block_id, band);
+            let q_key = format!("{}_eq_{}_q", block_id, band);
+            let gain_key = format!("{}_eq_{}_gain", block_id, band);
+            let enabled_key = format!("{}_eq_{}_enabled", block_id, band);
             
-            params.insert(type_key, ParameterValue::Int(0)); // off
+            params.insert(type_key, ParameterValue::Int(EQ_TYPE_OFF));
             params.insert(freq_key, ParameterValue::Float(1000.0));
             params.insert(q_key, ParameterValue::Float(1.0));
             params.insert(gain_key, ParameterValue::Float(0.0));
