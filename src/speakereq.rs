@@ -682,6 +682,7 @@ pub fn create_router(state: Arc<NodeState>) -> Router {
         .route("/api/v1/module/speakereq/enable", get(get_enable).put(set_enable))
         .route("/api/v1/module/speakereq/refresh", post(refresh_cache))
         .route("/api/v1/module/speakereq/default", post(set_default))
+        .route("/api/v1/module/speakereq/save", post(save_config))
         .with_state(state)
 }
 
@@ -761,5 +762,29 @@ pub async fn set_default(
     Ok(Json(serde_json::json!({
         "status": "ok",
         "message": "All parameters set to default values"
+    })))
+}
+
+/// Save current SpeakerEQ settings using the plugin's built-in save feature
+/// This sets the "save_settings" control port to 1, which triggers the plugin
+/// to save current parameters to ~/.config/ladspa/speakereq2x2.ini
+pub async fn save_config(
+    State(state): State<Arc<NodeState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use std::collections::HashMap;
+    
+    // Get the plugin prefix first
+    let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
+    
+    // Set "save_settings" to 1 to trigger the plugin to save
+    let mut set_params = HashMap::new();
+    set_params.insert(pkey(&prefix, "save_settings"), ParameterValue::Int(1));
+    
+    state.set_parameters(set_params)?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "SpeakerEQ settings saved"
     })))
 }

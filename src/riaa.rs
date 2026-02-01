@@ -356,8 +356,7 @@ pub async fn save_config(State(state): State<Arc<NodeState>>) -> Result<Json<ser
     
     Ok(Json(serde_json::json!({
         "status": "ok",
-        "message": "RIAA settings saved to ~/.config/ladspa/riaa.ini",
-        "note": "Settings will be loaded automatically when the plugin starts"
+        "message": "RIAA settings saved"
     })))
 }
 
