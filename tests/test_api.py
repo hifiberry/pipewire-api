@@ -107,20 +107,16 @@ def api_server():
     # Build the server if not already built
     build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     subprocess.run(
-        ["cargo", "build", "--release", "--bin", "speakereq-api"],
+        ["cargo", "build", "--release", "--bin", "pipewire-api"],
         cwd=build_dir,
         check=True,
         capture_output=True
     )
     
     # Start the server
-    env = os.environ.copy()
-    env["PORT"] = str(port)
-    
-    server_path = os.path.join(build_dir, "target", "release", "speakereq-api")
+    server_path = os.path.join(build_dir, "target", "release", "pipewire-api")
     process = subprocess.Popen(
-        [server_path],
-        env=env,
+        [server_path, "--port", str(port), "--localhost"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         preexec_fn=os.setsid
@@ -142,8 +138,8 @@ def api_server():
 
 
 def test_get_structure(api_server):
-    """Test GET /api/v1/structure endpoint"""
-    response = requests.get(f"{api_server}/api/v1/structure")
+    """Test GET /api/v1/speakereq/speakereq/structure endpoint"""
+    response = requests.get(f"{api_server}/api/v1/speakereq/structure")
     assert response.status_code == 200
     
     data = response.json()
@@ -157,7 +153,7 @@ def test_get_structure(api_server):
 
 
 def test_get_io(api_server):
-    """Test GET /api/v1/io endpoint"""
+    """Test GET /api/v1/speakereq/speakereq/io endpoint"""
     response = requests.get(f"{api_server}/api/v1/io")
     assert response.status_code == 200
     
@@ -167,7 +163,7 @@ def test_get_io(api_server):
 
 
 def test_get_enable(api_server):
-    """Test GET /api/v1/enable endpoint"""
+    """Test GET /api/v1/speakereq/enable endpoint"""
     response = requests.get(f"{api_server}/api/v1/enable")
     assert response.status_code == 200
     
@@ -210,7 +206,7 @@ def test_set_and_get_enable(api_server):
 
 
 def test_get_master_gain(api_server):
-    """Test GET /api/v1/gain/master endpoint"""
+    """Test GET /api/v1/speakereq/gain/master endpoint"""
     response = requests.get(f"{api_server}/api/v1/gain/master")
     assert response.status_code == 200
     
@@ -272,7 +268,7 @@ def test_invalid_master_gain(api_server):
 
 
 def test_get_eq_band(api_server):
-    """Test GET /api/v1/eq/{block}/{band} endpoint"""
+    """Test GET /api/v1/speakereq/eq/{block}/{band} endpoint"""
     response = requests.get(f"{api_server}/api/v1/eq/output_0/1")
     assert response.status_code == 200
     
@@ -508,7 +504,7 @@ def test_set_eq_band_without_enabled(api_server):
 
 
 def test_dedicated_enabled_endpoint(api_server):
-    """Test the dedicated enabled endpoint PUT /api/v1/eq/{block}/{band}/enabled"""
+    """Test the dedicated enabled endpoint PUT /api/v1/speakereq/eq/{block}/{band}/enabled"""
     block = "output_1"
     band = 15
     
@@ -578,7 +574,7 @@ def test_dedicated_enabled_endpoint(api_server):
 
 
 def test_status_includes_enabled(api_server):
-    """Test that GET /api/v1/status includes enabled for all EQ bands"""
+    """Test that GET /api/v1/speakereq/status includes enabled for all EQ bands"""
     response = requests.get(f"{api_server}/api/v1/status")
     assert response.status_code == 200
     
