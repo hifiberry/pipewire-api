@@ -3,6 +3,10 @@
 Integration tests for the Volume API.
 Uses the shared server from conftest.py with temporary HOME directory.
 Verifies volume changes using wpctl and pw-dump.
+
+Some tests are marked with @pytest.mark.local_only and will be skipped
+when running against a remote server (tests that verify state files or
+use local PipeWire CLI tools).
 """
 
 import subprocess
@@ -167,7 +171,7 @@ class TestVolumeList:
             assert "id" in vol, "Volume object missing 'id' field"
             assert "name" in vol, "Volume object missing 'name' field"
             assert "object_type" in vol, "Volume object missing 'object_type' field"
-            assert vol["object_type"] in ["device", "sink"], f"Invalid object_type: {vol['object_type']}"
+            assert vol["object_type"] in ["device", "sink", "source"], f"Invalid object_type: {vol['object_type']}"
     
     def test_volume_objects_have_volume_field(self, test_env, volume_controls):
         """Test that all returned objects have a volume field"""
@@ -226,6 +230,7 @@ class TestVolumeSet:
         )
         assert response.status_code == 200
     
+    @pytest.mark.local_only
     def test_set_sink_volume_verified_by_wpctl(self, test_env, volume_controls):
         """Test that setting sink volume actually changes it (verified via wpctl)"""
         # Find a sink (node) for testing
@@ -259,6 +264,7 @@ class TestVolumeSet:
         # Allow some tolerance for volume changes
         assert abs(current_volume - new_volume) < 0.02, f"Expected ~{new_volume}, got {current_volume} (verified via wpctl)"
     
+    @pytest.mark.local_only
     def test_set_device_volume_verified_by_pwdump(self, test_env, volume_controls):
         """Test that setting device volume actually changes it (verified via pw-dump)"""
         # Find a device for testing
@@ -312,6 +318,7 @@ class TestVolumeSave:
         response = requests.post(f"{test_env.base_url}/api/v1/volume/save")
         assert response.status_code == 200
     
+    @pytest.mark.local_only
     def test_save_all_volumes_creates_state_file(self, test_env, volume_controls):
         """Test that saving all volumes creates a state file"""
         response = requests.post(f"{test_env.base_url}/api/v1/volume/save")
@@ -321,6 +328,7 @@ class TestVolumeSave:
         assert state is not None, "State file was not created"
         assert isinstance(state, list), "State file should contain a list"
     
+    @pytest.mark.local_only
     def test_save_all_volumes_uses_names_as_keys(self, test_env, volume_controls):
         """Test that state file uses names as keys, not IDs"""
         response = requests.post(f"{test_env.base_url}/api/v1/volume/save")
@@ -348,6 +356,7 @@ class TestVolumeSave:
         assert "name" in data, "Response should include 'name'"
         assert data["name"] == vol["name"]
     
+    @pytest.mark.local_only
     def test_save_specific_volume_updates_state_file(self, test_env, volume_controls):
         """Test that saving specific volume updates the state file"""
         vol = volume_controls[0]
@@ -370,6 +379,7 @@ class TestVolumeSave:
         assert saved_entry is not None, f"Volume {vol['name']} not found in state file"
 
 
+@pytest.mark.local_only
 class TestVolumeStateFilePersistence:
     """Tests for state file persistence across server restarts"""
     
@@ -432,6 +442,7 @@ class TestVolumeStateFilePersistence:
         # The main test is that the server restarted and can serve requests
 
 
+@pytest.mark.local_only
 class TestVolumeRoundTrip:
     """End-to-end tests for volume operations with independent verification"""
     

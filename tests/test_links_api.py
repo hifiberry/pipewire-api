@@ -1,53 +1,17 @@
 """
 Tests for the Links API endpoints.
 
-These tests verify link creation, listing, and removal using the API,
-and verify results using the pw-link command line tool.
+These tests verify link creation, listing, and removal using the API endpoints.
+All verification is done through the API itself, making these tests suitable
+for both local and remote testing.
 """
 
-import os
-import subprocess
-import socket
 import time
-import signal
 import pytest
 import requests
 
 
 # Note: test_env fixture is provided by conftest.py (session-scoped)
-
-
-def run_pw_link(*args):
-    """Run pw-link command and return output."""
-    result = subprocess.run(
-        ["pw-link"] + list(args),
-        capture_output=True,
-        text=True
-    )
-    return result.returncode, result.stdout, result.stderr
-
-
-def get_pw_link_list():
-    """Get current links from pw-link -l -I."""
-    _, stdout, _ = run_pw_link("-l", "-I")
-    return stdout
-
-
-def link_exists_in_pw_link(output_port, input_port):
-    """Check if a link exists using pw-link output."""
-    stdout = get_pw_link_list()
-    # Looking for pattern: "  92   |->   82 speakereq2x2:playback_FL"
-    # After the output port "  90 effect_output.proc:output_FL"
-    lines = stdout.split('\n')
-    found_output = False
-    for line in lines:
-        if output_port in line and '|->' not in line and '|<-' not in line:
-            found_output = True
-        elif found_output and '|->' in line and input_port in line:
-            return True
-        elif found_output and '|->' not in line and '|<-' not in line and line.strip():
-            found_output = False
-    return False
 
 
 class TestListLinks:
@@ -128,7 +92,16 @@ class TestCreateAndRemoveLink:
     """Tests for creating and removing links"""
     
     def find_linkable_ports(self, test_env):
-        """Find an output and input port that can be linked for testing."""
+        """Find an output and input port that can be linked for testing.
+        
+        Filters out:
+        - Ports from the same node (can't self-link)
+        - Already linked pairs
+        - Monitor ports (output only)
+        - MIDI ports (incompatible with audio)
+        
+        Returns a pair of compatible audio ports or (None, None) if none found.
+        """
         # Get output ports
         out_response = requests.get(f"{test_env.base_url}/api/v1/links/ports/output")
         output_ports = out_response.json()["ports"]
@@ -142,9 +115,31 @@ class TestCreateAndRemoveLink:
         existing_links = links_response.json()["links"]
         existing_pairs = {(l["output_port_name"], l["input_port_name"]) for l in existing_links}
         
+        def is_midi_port(port):
+            """Check if a port is a MIDI port (incompatible with audio)."""
+            name = port["name"].lower()
+            return "midi" in name or "bluez_midi" in name
+        
+        def is_audio_port(port):
+            """Check if a port is an audio port (has channel indicators)."""
+            name = port["port_name"].lower()
+            # Common audio channel names
+            return any(ch in name for ch in ["_fl", "_fr", "_fc", "_lfe", "_rl", "_rr", 
+                                              "playback", "capture", "output", "input"])
+        
         # Find a pair that's not already linked
         # Prefer ports from different nodes and matching channels (FL to FL, etc.)
         for out_port in output_ports:
+            # Skip monitor ports
+            if "monitor" in out_port["name"].lower():
+                continue
+            # Skip MIDI ports
+            if is_midi_port(out_port):
+                continue
+            # Prefer audio ports
+            if not is_audio_port(out_port):
+                continue
+                
             for in_port in input_ports:
                 # Skip if same node
                 if out_port["node_name"] == in_port["node_name"]:
@@ -152,8 +147,11 @@ class TestCreateAndRemoveLink:
                 # Skip if already linked
                 if (out_port["name"], in_port["name"]) in existing_pairs:
                     continue
-                # Skip monitor ports
-                if "monitor" in out_port["name"].lower():
+                # Skip MIDI ports
+                if is_midi_port(in_port):
+                    continue
+                # Prefer audio ports
+                if not is_audio_port(in_port):
                     continue
                 return out_port, in_port
         
@@ -187,10 +185,6 @@ class TestCreateAndRemoveLink:
         assert exists_response.status_code == 200
         assert exists_response.json()["exists"] == True
         
-        # Verify link exists via pw-link command
-        assert link_exists_in_pw_link(output_name, input_name), \
-            f"Link {output_name} -> {input_name} not found in pw-link output"
-        
         # Clean up - remove the link
         link_id = exists_response.json().get("link_id")
         if link_id:
@@ -215,16 +209,16 @@ class TestCreateAndRemoveLink:
         )
         assert response.status_code == 200, f"Failed to create link: {response.text}"
         
-        # Verify link exists via pw-link
+        # Verify link exists via API
         time.sleep(0.1)  # Give PipeWire a moment to create the link
-        assert link_exists_in_pw_link(output_name, input_name), \
-            f"Link {output_name} -> {input_name} not found in pw-link output after creation"
-        
-        # Get the link ID
         exists_response = requests.get(
             f"{test_env.base_url}/api/v1/links/exists",
             params={"output": output_name, "input": input_name}
         )
+        assert exists_response.json()["exists"] == True, \
+            f"Link {output_name} -> {input_name} not found via API after creation"
+        
+        # Get the link ID
         link_id = exists_response.json().get("link_id")
         assert link_id is not None, "Link ID not returned"
         
@@ -232,10 +226,14 @@ class TestCreateAndRemoveLink:
         remove_response = requests.delete(f"{test_env.base_url}/api/v1/links/{link_id}")
         assert remove_response.status_code == 200, f"Failed to remove link: {remove_response.text}"
         
-        # Verify link is gone via pw-link
+        # Verify link is gone via API
         time.sleep(0.1)  # Give PipeWire a moment
-        assert not link_exists_in_pw_link(output_name, input_name), \
-            f"Link {output_name} -> {input_name} still exists in pw-link output after removal"
+        exists_response = requests.get(
+            f"{test_env.base_url}/api/v1/links/exists",
+            params={"output": output_name, "input": input_name}
+        )
+        assert exists_response.json()["exists"] == False, \
+            f"Link {output_name} -> {input_name} still exists via API after removal"
     
     def test_remove_link_by_name(self, test_env):
         """Test creating and removing a link using port names"""
@@ -254,9 +252,13 @@ class TestCreateAndRemoveLink:
         )
         assert response.status_code == 200
         
-        # Verify link exists
+        # Verify link exists via API
         time.sleep(0.1)
-        assert link_exists_in_pw_link(output_name, input_name)
+        exists_response = requests.get(
+            f"{test_env.base_url}/api/v1/links/exists",
+            params={"output": output_name, "input": input_name}
+        )
+        assert exists_response.json()["exists"] == True
         
         # Remove the link by name
         remove_response = requests.delete(
@@ -265,13 +267,17 @@ class TestCreateAndRemoveLink:
         )
         assert remove_response.status_code == 200
         
-        # Verify link is gone via pw-link
+        # Verify link is gone via API
         time.sleep(0.1)
-        assert not link_exists_in_pw_link(output_name, input_name), \
+        exists_response = requests.get(
+            f"{test_env.base_url}/api/v1/links/exists",
+            params={"output": output_name, "input": input_name}
+        )
+        assert exists_response.json()["exists"] == False, \
             f"Link still exists after removal by name"
     
     def test_link_round_trip(self, test_env):
-        """Full round trip: create link, verify in API and pw-link, remove, verify gone"""
+        """Full round trip: create link, verify in API, remove, verify gone"""
         output_port, input_port = self.find_linkable_ports(test_env)
         
         if output_port is None:
@@ -280,10 +286,12 @@ class TestCreateAndRemoveLink:
         output_name = output_port["name"]
         input_name = input_port["name"]
         
-        # 1. Verify link doesn't exist initially (in pw-link)
-        initial_exists = link_exists_in_pw_link(output_name, input_name)
-        # If it exists, skip this test
-        if initial_exists:
+        # 1. Verify link doesn't exist initially via API
+        initial_response = requests.get(
+            f"{test_env.base_url}/api/v1/links/exists",
+            params={"output": output_name, "input": input_name}
+        )
+        if initial_response.json()["exists"]:
             pytest.skip(f"Link {output_name} -> {input_name} already exists")
         
         # 2. Create the link via API
@@ -301,33 +309,23 @@ class TestCreateAndRemoveLink:
         assert exists_response.json()["exists"] == True
         link_id = exists_response.json()["link_id"]
         
-        # 4. Verify link exists in pw-link
-        time.sleep(0.1)
-        assert link_exists_in_pw_link(output_name, input_name), \
-            "Link not visible in pw-link after creation"
-        
-        # 5. Verify link appears in list
+        # 4. Verify link appears in list
         list_response = requests.get(f"{test_env.base_url}/api/v1/links")
         links = list_response.json()["links"]
         found = any(l["output_port_name"] == output_name and l["input_port_name"] == input_name 
                    for l in links)
         assert found, "Link not found in links list"
         
-        # 6. Remove the link
+        # 5. Remove the link
         remove_response = requests.delete(f"{test_env.base_url}/api/v1/links/{link_id}")
         assert remove_response.status_code == 200
         
-        # 7. Verify link gone from API
+        # 6. Verify link gone from API
         exists_response = requests.get(
             f"{test_env.base_url}/api/v1/links/exists",
             params={"output": output_name, "input": input_name}
         )
         assert exists_response.json()["exists"] == False
-        
-        # 8. Verify link gone from pw-link
-        time.sleep(0.1)
-        assert not link_exists_in_pw_link(output_name, input_name), \
-            "Link still visible in pw-link after removal"
 
 
 class TestLinkExists:

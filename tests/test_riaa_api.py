@@ -5,6 +5,7 @@ from pipewire_utils import get_pipewire_param, verify_param_set
 
 
 # Note: api_server fixture is provided by conftest.py (session-scoped)
+# Tests marked with @pytest.mark.local_only require local pw-cli access
 
 
 def find_riaa_node(base_url):
@@ -47,6 +48,7 @@ def test_get_config(api_server):
     assert "notch_q_factor" in config
 
 
+@pytest.mark.local_only
 def test_set_default(api_server):
     """Test setting RIAA to default values and verify they persist."""
     node_id = find_riaa_node(api_server)
@@ -87,6 +89,7 @@ def test_get_gain(api_server):
     assert isinstance(data["gain_db"], (int, float))
 
 
+@pytest.mark.local_only
 def test_set_gain(api_server):
     """Test setting RIAA gain and verify it persists in PipeWire."""
     node_id = find_riaa_node(api_server)
@@ -116,6 +119,7 @@ def test_get_subsonic_filter(api_server):
     assert isinstance(data["filter"], int)
 
 
+@pytest.mark.local_only
 def test_set_subsonic_filter(api_server):
     """Test setting RIAA subsonic filter and verify it persists."""
     node_id = find_riaa_node(api_server)
@@ -144,6 +148,7 @@ def test_get_riaa_enable(api_server):
     assert isinstance(data["enabled"], bool)
 
 
+@pytest.mark.local_only
 def test_set_riaa_enable(api_server):
     """Test setting RIAA enable and verify it persists."""
     node_id = find_riaa_node(api_server)
@@ -172,6 +177,7 @@ def test_get_declick_enable(api_server):
     assert isinstance(data["enabled"], bool)
 
 
+@pytest.mark.local_only
 def test_set_declick_enable(api_server):
     """Test setting declick enable and verify it persists."""
     node_id = find_riaa_node(api_server)

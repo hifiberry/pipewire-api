@@ -2,6 +2,10 @@
 """
 Integration tests for the SpeakerEQ API server.
 Tests start the server on a random port >33000 and verify all endpoints.
+
+Some tests are marked with @pytest.mark.local_only and will be skipped
+when running against a remote server (tests that verify parameters directly
+via pw-cli).
 """
 
 import subprocess
@@ -213,6 +217,7 @@ def test_get_enable(speakereq_server):
     assert isinstance(data["enabled"], bool)
 
 
+@pytest.mark.local_only
 def test_set_and_get_enable(speakereq_server):
     """Test setting and getting the enable parameter"""
     # Get initial state
@@ -257,6 +262,7 @@ def test_get_master_gain(speakereq_server):
     assert -60.0 <= gain <= 12.0
 
 
+@pytest.mark.local_only
 def test_set_and_get_master_gain(speakereq_server):
     """Test setting and getting master gain"""
     # Get initial value
@@ -320,6 +326,7 @@ def test_get_eq_band(speakereq_server):
     assert "gain" in data
 
 
+@pytest.mark.local_only
 def test_set_and_get_eq_band(speakereq_server):
     """Test setting and getting EQ band parameters"""
     block = "output_0"
@@ -452,6 +459,7 @@ def test_eq_band_enabled_field(speakereq_server):
     assert isinstance(data["enabled"], bool)
 
 
+@pytest.mark.local_only
 def test_set_eq_band_with_enabled(speakereq_server):
     """Test setting EQ band with enabled field"""
     block = "input_0"
@@ -513,6 +521,7 @@ def test_set_eq_band_with_enabled(speakereq_server):
     )
 
 
+@pytest.mark.local_only
 def test_set_eq_band_without_enabled(speakereq_server):
     """Test that enabled defaults to true when not provided"""
     block = "input_1"
@@ -544,6 +553,7 @@ def test_set_eq_band_without_enabled(speakereq_server):
     assert pw_enabled.lower() == "true", f"PipeWire enabled {pw_enabled} should default to true"
 
 
+@pytest.mark.local_only
 def test_dedicated_enabled_endpoint(speakereq_server):
     """Test the dedicated enabled endpoint PUT /api/module/speakereq/eq/{block}/{band}/enabled"""
     block = "output_1"
@@ -636,6 +646,7 @@ def test_status_includes_enabled(speakereq_server):
             assert isinstance(band["enabled"], bool)
 
 
+@pytest.mark.local_only
 def test_refresh_cache_after_external_change(speakereq_server):
     """Test that refresh endpoint updates cache after external pw-cli changes"""
     block = "output_0"
@@ -684,6 +695,7 @@ def test_refresh_cache_after_external_change(speakereq_server):
     ], check=True, capture_output=True)
 
 
+@pytest.mark.local_only
 def test_set_default(speakereq_server):
     """Test setting all parameters to default values"""
     node_id, node_name = find_speakereq_node()
