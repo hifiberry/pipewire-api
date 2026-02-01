@@ -3,11 +3,13 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::collections::HashMap;
 use crate::parameters::ParameterValue;
 use crate::linker::LinkRule;
+use crate::pwcli::PwObject;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 /// Status of a link rule execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +48,8 @@ pub struct AppState {
     pub link_rules: Arc<Mutex<Vec<LinkRule>>>,
     // Status tracking for each rule (indexed by rule position)
     pub rule_status: Arc<Mutex<HashMap<usize, RuleStatus>>>,
+    // Cache of PipeWire objects (id -> object)
+    pub object_cache: Arc<RwLock<Vec<PwObject>>>,
 }
 
 impl AppState {
@@ -55,7 +59,53 @@ impl AppState {
             cache: Arc::new(Mutex::new(None)),
             link_rules: Arc::new(Mutex::new(Vec::new())),
             rule_status: Arc::new(Mutex::new(HashMap::new())),
+            object_cache: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+
+    /// Load all PipeWire objects into the cache
+    pub fn refresh_object_cache(&self) -> Result<(), String> {
+        let objects = crate::pwcli::list_all()?;
+        let count = objects.len();
+        *self.object_cache.write().unwrap() = objects;
+        info!("Loaded {} PipeWire objects into cache", count);
+        Ok(())
+    }
+
+    /// Get all cached objects
+    pub fn get_cached_objects(&self) -> Vec<PwObject> {
+        self.object_cache.read().unwrap().clone()
+    }
+
+    /// Get a cached object by ID
+    pub fn get_object_by_id(&self, id: u32) -> Option<PwObject> {
+        self.object_cache.read().unwrap()
+            .iter()
+            .find(|o| o.id == id)
+            .cloned()
+    }
+
+    /// Get objects by type
+    pub fn get_objects_by_type(&self, obj_type: &str) -> Vec<PwObject> {
+        self.object_cache.read().unwrap()
+            .iter()
+            .filter(|o| crate::pwcli::simplify_type(&o.object_type) == obj_type)
+            .cloned()
+            .collect()
+    }
+
+    /// Find object ID by name (searches node.name, device.name, etc.)
+    pub fn find_id_by_name(&self, name: &str) -> Option<u32> {
+        self.object_cache.read().unwrap()
+            .iter()
+            .find(|o| o.name().map(|n| n == name).unwrap_or(false))
+            .map(|o| o.id)
+    }
+
+    /// Find object name by ID
+    pub fn find_name_by_id(&self, id: u32) -> Option<String> {
+        self.get_object_by_id(id)
+            .and_then(|o| o.name().map(|s| s.to_string()))
     }
 
     pub fn set_link_rules(&self, rules: Vec<LinkRule>) {

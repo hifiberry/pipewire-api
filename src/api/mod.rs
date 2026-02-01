@@ -35,6 +35,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/ls/factories", get(listing::list_factories))
         .route("/api/v1/ls/clients", get(listing::list_clients))
         .route("/api/v1/ls/links", get(listing::list_links))
+        // Object by ID endpoint
+        .route("/api/v1/objects/:id", get(listing::get_object_by_id))
+        // Cache refresh endpoint
+        .route("/api/v1/cache/refresh", post(listing::refresh_cache))
         // Properties endpoints
         .route("/api/v1/properties", get(properties::list_all_properties))
         .route("/api/v1/properties/:id", get(properties::get_object_properties))

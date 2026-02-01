@@ -1,115 +1,149 @@
 //! Listing handlers for PipeWire objects
+//!
+//! Uses pw-cli for simple and reliable object listing.
 
 use axum::{
-    extract::State,
+    extract::{Path, State},
     Json,
 };
 use std::sync::Arc;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use crate::api_server::{ApiError, AppState};
-use crate::PipeWireClient;
+use crate::pwcli;
 use super::types::*;
+
+/// Convert a pwcli::PwObject to our API PipeWireObject
+fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
+    PipeWireObject {
+        id: obj.id,
+        name: obj.display_name(),
+        object_type: pwcli::simplify_type(&obj.object_type).to_string(),
+    }
+}
 
 /// List all PipeWire objects
 pub async fn list_all(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    use pipewire as pw;
+    let objects = pwcli::list_all()
+        .map_err(|e| ApiError::Internal(format!("Failed to list objects: {}", e)))?;
     
-    let client = PipeWireClient::new()
-        .map_err(|e| ApiError::Internal(format!("Failed to connect to PipeWire: {}", e)))?;
-    
-    let found_objects: Rc<RefCell<Vec<PipeWireObject>>> = Rc::new(RefCell::new(Vec::new()));
-    let found_objects_clone = found_objects.clone();
-    
-    // Set up timeout
-    let timeout_mainloop = client.mainloop().clone();
-    let _timer = client.mainloop().loop_().add_timer(move |_| {
-        timeout_mainloop.quit();
-    });
-    _timer.update_timer(Some(std::time::Duration::from_secs(2)), None);
-    
-    let _listener = client.registry()
-        .add_listener_local()
-        .global({
-            move |global| {
-                if let Some(props) = &global.props {
-                    let obj_type = match global.type_ {
-                        pw::types::ObjectType::Node => TYPE_NODE,
-                        pw::types::ObjectType::Device => TYPE_DEVICE,
-                        pw::types::ObjectType::Port => TYPE_PORT,
-                        pw::types::ObjectType::Link => TYPE_LINK,
-                        pw::types::ObjectType::Client => TYPE_CLIENT,
-                        pw::types::ObjectType::Factory => TYPE_FACTORY,
-                        pw::types::ObjectType::Module => TYPE_MODULE,
-                        _ => "other",
-                    };
-                    
-                    let name = props.get("node.name")
-                        .or_else(|| props.get("device.name"))
-                        .or_else(|| props.get("port.name"))
-                        .or_else(|| props.get("client.name"))
-                        .or_else(|| props.get("factory.name"))
-                        .or_else(|| props.get("module.name"))
-                        .or_else(|| props.get("object.path"))
-                        .unwrap_or("unknown");
-                    
-                    found_objects_clone.borrow_mut().push(PipeWireObject {
-                        id: global.id,
-                        name: name.to_string(),
-                        object_type: obj_type.to_string(),
-                    });
-                }
-            }
-        })
-        .register();
-    
-    client.mainloop().run();
-    
-    let objects = found_objects.borrow().clone();
-    Ok(Json(ListResponse { objects }))
-}
-
-/// Generic function to list objects by type
-async fn list_by_type(state: Arc<AppState>, object_type: &str) -> Result<Json<ListResponse>, ApiError> {
-    let all = list_all(State(state)).await?;
-    let filtered: Vec<PipeWireObject> = all.0.objects.into_iter()
-        .filter(|obj| obj.object_type == object_type)
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
         .collect();
-    Ok(Json(ListResponse { objects: filtered }))
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all nodes
-pub async fn list_nodes(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_NODE).await
+pub async fn list_nodes(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_nodes()
+        .map_err(|e| ApiError::Internal(format!("Failed to list nodes: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all devices
-pub async fn list_devices(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_DEVICE).await
+pub async fn list_devices(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_devices()
+        .map_err(|e| ApiError::Internal(format!("Failed to list devices: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all ports
-pub async fn list_ports(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_PORT).await
+pub async fn list_ports(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_ports()
+        .map_err(|e| ApiError::Internal(format!("Failed to list ports: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all modules
-pub async fn list_modules(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_MODULE).await
+pub async fn list_modules(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_modules()
+        .map_err(|e| ApiError::Internal(format!("Failed to list modules: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all factories
-pub async fn list_factories(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_FACTORY).await
+pub async fn list_factories(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_factories()
+        .map_err(|e| ApiError::Internal(format!("Failed to list factories: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all clients
-pub async fn list_clients(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_CLIENT).await
+pub async fn list_clients(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_clients()
+        .map_err(|e| ApiError::Internal(format!("Failed to list clients: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
 }
 
 /// List all links
-pub async fn list_links(State(state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    list_by_type(state, TYPE_LINK).await
+pub async fn list_links(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
+    let objects = pwcli::list_links()
+        .map_err(|e| ApiError::Internal(format!("Failed to list links: {}", e)))?;
+    
+    let api_objects: Vec<PipeWireObject> = objects.iter()
+        .map(to_api_object)
+        .collect();
+    
+    Ok(Json(ListResponse { objects: api_objects }))
+}
+
+/// Get a single object by ID
+pub async fn get_object_by_id(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<u32>,
+) -> Result<Json<PipeWireObject>, ApiError> {
+    // First try the cache
+    if let Some(obj) = state.get_object_by_id(id) {
+        return Ok(Json(to_api_object(&obj)));
+    }
+    
+    // If not in cache, try to get it directly from pw-cli
+    match pwcli::get_object(id) {
+        Ok(Some(obj)) => Ok(Json(to_api_object(&obj))),
+        Ok(None) => Err(ApiError::NotFound(format!("Object {} not found", id))),
+        Err(e) => Err(ApiError::Internal(format!("Failed to get object: {}", e))),
+    }
+}
+
+/// Refresh the object cache
+pub async fn refresh_cache(State(state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, ApiError> {
+    if let Err(e) = state.refresh_object_cache() {
+        return Err(ApiError::Internal(format!("Failed to refresh cache: {}", e)));
+    }
+    let count = state.get_cached_objects().len();
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "Cache refreshed",
+        "object_count": count
+    })))
 }

@@ -36,6 +36,11 @@ async fn main() -> Result<()> {
     // Create shared state (just the node name, we'll reconnect per request)
     let state = Arc::new(AppState::new(info.name));
 
+    // Load PipeWire object cache on startup
+    if let Err(e) = state.refresh_object_cache() {
+        tracing::warn!("Failed to load object cache on startup: {}", e);
+    }
+
     // Load and apply volume rules on startup
     let volume_rules = pw_api::config::load_all_volume_rules();
     if !volume_rules.is_empty() {
