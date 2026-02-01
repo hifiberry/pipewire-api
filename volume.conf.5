@@ -1,0 +1,252 @@
+.TH VOLUME.CONF 5 "January 2026" "pipewire-api" "File Formats Manual"
+.SH NAME
+volume.conf \- configuration file for pipewire-api default volumes
+.SH SYNOPSIS
+.nf
+/etc/pipewire-api/volume.conf
+~/.config/pipewire-api/volume.conf
+.fi
+.SH DESCRIPTION
+The
+.B volume.conf
+file configures default volume levels for PipeWire devices and sinks. Volumes are applied
+once when the pipewire-api server starts. This allows setting hardware and software volume
+levels automatically on system startup.
+.PP
+Rules are loaded from two locations (in order of precedence):
+.IP \(bu 2
+User-specific: \fB~/.config/pipewire-api/volume.conf\fP (highest priority)
+.IP \(bu 2
+System-wide: \fB/etc/pipewire-api/volume.conf\fP (fallback)
+.PP
+Both files are loaded and their rules are combined.
+.SH FILE FORMAT
+The configuration file uses JSON format containing an array of volume rule objects.
+.SS Basic Structure
+.EX
+[
+  {
+    "name": "HiFiBerry DAC Default Volume",
+    "object": {
+      "device.name": "alsa_card\\\\.platform-soc_.*_sound"
+    },
+    "volume": 0.75
+  }
+]
+.EE
+.SH RULE PROPERTIES
+.SS Required Properties
+.TP
+.B name
+(string) Descriptive name for this volume rule. Used for logging purposes.
+.TP
+.B object
+(object) Identifies the target device or sink using property matching. Must contain at least
+one property key-value pair where values are regular expression patterns.
+Common device properties include:
+.RS
+.IP \(bu 2
+\fBdevice.name\fP: Device name (e.g., "alsa_card.usb-Audio_Device")
+.IP \(bu 2
+\fBdevice.description\fP: Human-readable description
+.IP \(bu 2
+\fBdevice.api\fP: API used (e.g., "alsa", "v4l2")
+.IP \(bu 2
+\fBdevice.nick\fP: Short device nickname
+.RE
+.IP
+Common sink (node) properties include:
+.RS
+.IP \(bu 2
+\fBnode.name\fP: Sink name (e.g., "alsa_output.pci-0000_00_1f.3.analog-stereo")
+.IP \(bu 2
+\fBnode.description\fP: Human-readable description
+.IP \(bu 2
+\fBmedia.class\fP: Should be "Audio/Sink" for sinks
+.RE
+.IP
+All specified properties must match for the rule to apply to an object.
+.TP
+.B volume
+(number) Volume level to set, from 0.0 to 2.0:
+.RS
+.IP \(bu 2
+\fB0.0\fP: Mute (silent)
+.IP \(bu 2
+\fB0.5\fP: 50% volume
+.IP \(bu 2
+\fB1.0\fP: Normal volume (100%)
+.IP \(bu 2
+\fB2.0\fP: 200% volume (may cause clipping)
+.RE
+.SH PATTERN MATCHING
+Properties are matched using \fBregular expressions\fP. Common patterns:
+.TP
+.B ^device_name$
+Exact match
+.TP
+.B ^prefix
+Starts with "prefix"
+.TP
+.B substring
+Contains "substring"
+.TP
+.B .*
+Matches any characters (wildcard)
+.TP
+.B device[12]
+Matches "device1" or "device2"
+.PP
+Remember to escape special regex characters with backslashes:
+.RS
+.IP \(bu 2
+\fB.\fP becomes \fB\\\\.\fP (to match a literal dot)
+.IP \(bu 2
+\fB[\fP becomes \fB\\\\[\fP
+.IP \(bu 2
+Use raw JSON strings or double-escape: \fB"\\\\\\\\."\fP
+.RE
+.SH EXAMPLES
+.SS Set volume for all ALSA devices
+.EX
+{
+  "name": "All ALSA Devices",
+  "object": {
+    "device.api": "alsa"
+  },
+  "volume": 0.8
+}
+.EE
+.SS Set volume for USB audio devices
+.EX
+{
+  "name": "USB Audio Devices",
+  "object": {
+    "device.name": "alsa_card\\\\.usb-.*"
+  },
+  "volume": 0.9
+}
+.EE
+.SS Set volume for specific HiFiBerry device
+.EX
+{
+  "name": "HiFiBerry DAC+ ADC",
+  "object": {
+    "device.name": "alsa_card\\\\.platform-soc_.*_sound",
+    "device.nick": "snd_rpi_hifiberry_dacplusadc"
+  },
+  "volume": 0.75
+}
+.EE
+.SS Set volume for audio sink
+.EX
+{
+  "name": "Built-in Audio Sink",
+  "object": {
+    "node.name": "alsa_output\\\\.pci-.*\\\\.analog-stereo",
+    "media.class": "Audio/Sink"
+  },
+  "volume": 0.85
+}
+.EE
+.SS Multiple objects with different volumes
+.EX
+[
+  {
+    "name": "Internal Audio Device",
+    "object": {
+      "device.name": "alsa_card\\\\.pci-.*"
+    },
+    "volume": 0.6
+  },
+  {
+    "name": "External USB DAC",
+    "object": {
+      "device.name": "alsa_card\\\\.usb-DAC.*"
+    },
+    "volume": 0.85
+  },
+  {
+    "name": "SpeakerEQ Sink",
+    "object": {
+      "node.name": "speakereq2x2"
+    },
+    "volume": 1.0
+  }
+]
+.EE
+.SH VOLUME APPLICATION
+.IP \(bu 2
+Volumes are applied \fBonce\fP at server startup
+.IP \(bu 2
+Changes to the config file require a server restart
+.IP \(bu 2
+For devices: Uses Device Route parameters (hardware volume control)
+.IP \(bu 2
+For sinks: Uses Node Props parameters (software volume control)
+.IP \(bu 2
+If an object doesn't support volume control, the setting is silently ignored
+.IP \(bu 2
+Volume range is 0.0 to 2.0 where 1.0 = 100% (values >1.0 may cause clipping)
+.SH DISCOVERING OBJECTS
+To find device and sink IDs and properties:
+.PP
+.EX
+# List all devices
+pw-cli ls Device
+
+# List all nodes (including sinks)
+pw-cli ls Node
+
+# Show device details
+pw-dump | jq '.[] | select(.type == "PipeWire:Interface:Device")'
+
+# Show sink details
+pw-dump | jq '.[] | select(.info.props."media.class" == "Audio/Sink")'
+
+# Check current volume for device
+pw-cli enum-params <device-id> Route | grep channelVolumes
+
+# Check current volume for sink
+pw-cli enum-params <node-id> Props | grep volume
+.EE
+.SH TESTING
+Verify volume was applied:
+.PP
+.EX
+# Via REST API (works for both devices and sinks)
+curl http://localhost:2716/api/v1/volume
+curl http://localhost:2716/api/v1/volume/56
+
+# Via PipeWire CLI for device
+pw-cli enum-params 56 Route | grep channelVolumes
+
+# Via PipeWire CLI for sink
+pw-cli enum-params 81 Props | grep volume
+.EE
+.SH NOTES
+.IP \(bu 2
+Volume changes are not persistent across PipeWire restarts unless configured here
+.IP \(bu 2
+The REST API can be used to change volumes dynamically at runtime
+.IP \(bu 2
+Some devices may not support hardware volume control
+.IP \(bu 2
+Changes made via wpctl or other tools will override these defaults
+.IP \(bu 2
+The configuration supports both hardware devices and software sinks
+.SH FILES
+.TP
+.B /etc/pipewire-api/volume.conf
+System-wide default volumes configuration
+.TP
+.B ~/.config/pipewire-api/volume.conf
+User-specific volumes configuration (overrides system config)
+.SH SEE ALSO
+.BR pipewire-api (1),
+.BR link-rules.conf (5),
+.BR pw-cli (1),
+.BR pw-dump (1),
+.BR wpctl (1)
+.SH AUTHOR
+HiFiBerry

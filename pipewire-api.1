@@ -107,6 +107,22 @@ Get all objects with their complete property dictionaries
 .TP
 .B GET /properties/:id
 Get properties for a specific object by ID
+.SS Device Management Endpoints
+.TP
+.B GET /api/v1/devices
+List all PipeWire devices with their properties
+.SS Volume Management Endpoints
+The volume API provides unified volume control for both hardware devices and
+software sinks (audio outputs). The API automatically detects the object type.
+.TP
+.B GET /api/v1/volume
+List all devices and sinks that support volume control
+.TP
+.B GET /api/v1/volume/:id
+Get volume information for a specific device or sink
+.TP
+.B PUT /api/v1/volume/:id
+Set volume for a device or sink (JSON body with "volume" field)
 .SS Link Management Endpoints
 .TP
 .B GET /links
