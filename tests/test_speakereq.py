@@ -17,8 +17,8 @@ import re
 
 def find_speakereq_node():
     """
-    Find the speakereq2x2 node ID dynamically.
-    Returns the node ID or None if not found.
+    Find any speakereq node (speakereqNxM) dynamically.
+    Returns tuple (node_id, node_name) or (None, None) if not found.
     """
     try:
         result = subprocess.run(
@@ -30,28 +30,31 @@ def find_speakereq_node():
         
         lines = result.stdout.split('\n')
         for i, line in enumerate(lines):
-            if 'node.name = "speakereq2x2"' in line and 'media.class = "Audio/Sink"' in lines[i+1] if i+1 < len(lines) else False:
+            # Look for any node.name that matches speakereq pattern
+            match = re.search(r'node\.name = "(speakereq\d+x\d+)"', line)
+            if match and 'media.class = "Audio/Sink"' in lines[i+1] if i+1 < len(lines) else False:
+                node_name = match.group(1)
                 # Look backwards for the id line
                 for j in range(i-1, max(i-10, 0), -1):
                     if 'id' in lines[j]:
-                        match = re.search(r'id (\d+)', lines[j])
-                        if match:
-                            return int(match.group(1))
-        return None
+                        id_match = re.search(r'id (\d+)', lines[j])
+                        if id_match:
+                            return int(id_match.group(1)), node_name
+        return None, None
     except Exception as e:
         print(f"Error finding speakereq node: {e}")
-        return None
+        return None, None
 
 
-def get_pw_param(param_name, node_id=None, node_name="speakereq2x2"):
+def get_pw_param(param_name, node_id=None, node_name=None):
     """
     Read a parameter value directly from PipeWire using pw-cli.
     Returns the parameter value as a string, or None if not found.
     """
-    if node_id is None:
-        node_id = find_speakereq_node()
+    if node_id is None or node_name is None:
+        node_id, node_name = find_speakereq_node()
         if node_id is None:
-            print("Could not find speakereq2x2 node")
+            print("Could not find speakereq node")
             return None
     
     try:
@@ -64,7 +67,7 @@ def get_pw_param(param_name, node_id=None, node_name="speakereq2x2"):
         
         # Parse pw-cli output to find the parameter
         # Format is:
-        #   String "speakereq2x2:parameter_name"
+        #   String "speakereqNxM:parameter_name"
         #   Type value
         lines = result.stdout.split('\n')
         
@@ -139,13 +142,19 @@ def api_server():
 
 def test_get_structure(api_server):
     """Test GET /api/module/speakereq/speakereq/structure endpoint"""
+    node_id, node_name = find_speakereq_node()
+    if node_id is None:
+        pytest.skip("No speakereq node found")
+    
     response = requests.get(f"{api_server}/api/module/speakereq/structure")
     assert response.status_code == 200
     
     data = response.json()
-    assert data["name"] == "speakereq2x2"
-    assert data["inputs"] == 2
-    assert data["outputs"] == 2
+    assert "name" in data
+    assert isinstance(data["inputs"], int)
+    assert isinstance(data["outputs"], int)
+    assert data["inputs"] > 0
+    assert data["outputs"] > 0
     assert isinstance(data["blocks"], list)
     assert len(data["blocks"]) > 0
     assert isinstance(data["enabled"], bool)
@@ -160,6 +169,66 @@ def test_get_io(api_server):
     data = response.json()
     assert data["inputs"] == 2
     assert data["outputs"] == 2
+
+
+def test_get_config(api_server):
+    """Test GET /api/module/speakereq/config endpoint - dynamic configuration discovery"""
+    # Find the speakereq node to get its name
+    node_id, node_name = find_speakereq_node()
+    if node_id is None:
+        pytest.skip("No speakereq node found")
+    
+    # Parse the expected inputs/outputs from the node name (speakereqNxM)
+    match = re.search(r'speakereq(\d+)x(\d+)', node_name)
+    assert match is not None, f"Node name {node_name} doesn't match speakereqNxM pattern"
+    
+    expected_inputs = int(match.group(1))
+    expected_outputs = int(match.group(2))
+    
+    # Get config from API
+    response = requests.get(f"{api_server}/api/module/speakereq/config")
+    assert response.status_code == 200
+    
+    data = response.json()
+    
+    # Verify basic structure
+    assert "inputs" in data
+    assert "outputs" in data
+    assert "eq_slots" in data
+    assert "plugin_name" in data
+    assert "method" in data
+    
+    # Verify inputs/outputs match the plugin name
+    assert data["inputs"] == expected_inputs, \
+        f"Plugin {node_name} should have {expected_inputs} inputs, got {data['inputs']}"
+    assert data["outputs"] == expected_outputs, \
+        f"Plugin {node_name} should have {expected_outputs} outputs, got {data['outputs']}"
+    
+    # Verify plugin name matches
+    assert data["plugin_name"] == node_name
+    
+    # Verify method indicates probing
+    assert data["method"] == "probed_from_parameters"
+    
+    # Verify EQ slots structure
+    assert isinstance(data["eq_slots"], dict)
+    
+    # Check that all expected input/output blocks have EQ slots
+    for i in range(expected_inputs):
+        block_name = f"input_{i}"
+        assert block_name in data["eq_slots"], \
+            f"Missing EQ slots for {block_name}"
+        assert data["eq_slots"][block_name] >= 10, \
+            f"{block_name} should have at least 10 EQ slots, got {data['eq_slots'][block_name]}"
+    
+    for i in range(expected_outputs):
+        block_name = f"output_{i}"
+        assert block_name in data["eq_slots"], \
+            f"Missing EQ slots for {block_name}"
+        assert data["eq_slots"][block_name] >= 10, \
+            f"{block_name} should have at least 10 EQ slots, got {data['eq_slots'][block_name]}"
+    
+    print(f"✓ Config test passed for {node_name}: {expected_inputs}x{expected_outputs} with {data['eq_slots']} EQ slots")
 
 
 def test_get_enable(api_server):
@@ -599,8 +668,8 @@ def test_refresh_cache_after_external_change(api_server):
     """Test that refresh endpoint updates cache after external pw-cli changes"""
     block = "output_0"
     band = 3
-    node_id = find_speakereq_node()
-    assert node_id is not None, "Could not find speakereq2x2 node"
+    node_id, node_name = find_speakereq_node()
+    assert node_id is not None, "Could not find speakereq node"
     
     # Get initial value via API
     response = requests.get(f"{api_server}/api/module/speakereq/eq/{block}/{band}")
@@ -611,7 +680,7 @@ def test_refresh_cache_after_external_change(api_server):
     # Set type to high_shelf (2) using pw-cli
     subprocess.run([
         "pw-cli", "set-param", str(node_id), "Props",
-        '{ "params": ["speakereq2x2:output_0_eq_3_type", 2] }'
+        f'{{ "params": ["{node_name}:output_0_eq_3_type", 2] }}'
     ], check=True, capture_output=True)
     
     # Give PipeWire time to process
@@ -639,15 +708,15 @@ def test_refresh_cache_after_external_change(api_server):
     # Cleanup: set it back to off
     subprocess.run([
         "pw-cli", "set-param", str(node_id), "Props",
-        '{ "params": ["speakereq2x2:output_0_eq_3_type", 0] }'
+        f'{{ "params": ["{node_name}:output_0_eq_3_type", 0] }}'
     ], check=True, capture_output=True)
 
 
 def test_set_default(api_server):
     """Test setting all parameters to default values"""
-    node_id = find_speakereq_node()
+    node_id, node_name = find_speakereq_node()
     if node_id is None:
-        pytest.skip("speakereq2x2 node not found")
+        pytest.skip("speakereq node not found")
     
     # First, set some non-default values and verify they're set
     
@@ -682,7 +751,7 @@ def test_set_default(api_server):
     # 3. Set crossbar to non-identity values using pw-cli directly
     subprocess.run([
         "pw-cli", "set-param", str(node_id), "Props",
-        '{ "params": ["speakereq2x2:xbar_0_to_0", 0.5, "speakereq2x2:xbar_0_to_1", 0.7, "speakereq2x2:xbar_1_to_0", 0.3, "speakereq2x2:xbar_1_to_1", 0.8] }'
+        f'{{ "params": ["{node_name}:xbar_0_to_0", 0.5, "{node_name}:xbar_0_to_1", 0.7, "{node_name}:xbar_1_to_0", 0.3, "{node_name}:xbar_1_to_1", 0.8] }}'
     ], check=True, capture_output=True)
     
     # Force cache refresh to see crossbar changes
