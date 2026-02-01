@@ -420,7 +420,7 @@ All SpeakerEQ endpoints are prefixed with `/speakereq`.
 
 #### Get Plugin Structure
 ```
-GET /speakereq/structure
+GET /module/speakereq/structure
 ```
 Returns the overall structure of the plugin including available blocks and their configuration.
 
@@ -480,7 +480,7 @@ Returns the overall structure of the plugin including available blocks and their
 
 #### Get Input/Output Count
 ```
-GET /speakereq/io
+GET /module/speakereq/io
 ```
 Returns the number of inputs and outputs.
 
@@ -494,7 +494,7 @@ Returns the number of inputs and outputs.
 
 #### Get Complete Status
 ```
-GET /speakereq/status
+GET /module/speakereq/status
 ```
 Get the complete status of the plugin including enable state, master gain, crossbar matrix, and all block configurations with EQ bands in a single call.
 
@@ -575,7 +575,7 @@ Get the complete status of the plugin including enable state, master gain, cross
 
 #### Get All EQs in a Block
 ```
-GET /speakereq/eq/{block}
+GET /module/speakereq/eq/{block}
 ```
 Get all EQ bands for a specific block (e.g., `input_0`, `output_1`).
 
@@ -619,7 +619,7 @@ Get all EQ bands for a specific block (e.g., `input_0`, `output_1`).
 
 #### Get Single EQ Band
 ```
-GET /speakereq/eq/{block}/{band}
+GET /module/speakereq/eq/{block}/{band}
 ```
 Get a specific EQ band configuration.
 
@@ -645,7 +645,7 @@ Get a specific EQ band configuration.
 
 #### Set Single EQ Band
 ```
-PUT /speakereq/eq/{block}/{band}
+PUT /module/speakereq/eq/{block}/{band}
 ```
 Update a specific EQ band.
 
@@ -689,7 +689,7 @@ Update a specific EQ band.
 
 #### Enable/Disable Single EQ Band
 ```
-PUT /speakereq/eq/{block}/{band}/enabled
+PUT /module/speakereq/eq/{block}/{band}/enabled
 ```
 Enable or disable a specific EQ band without modifying its other parameters.
 
@@ -718,7 +718,7 @@ Enable or disable a specific EQ band without modifying its other parameters.
 
 #### Set All EQ Bands in a Block
 ```
-PUT /speakereq/eq/{block}
+PUT /module/speakereq/eq/{block}
 ```
 Update all EQ bands in a block at once.
 
@@ -759,7 +759,7 @@ Update all EQ bands in a block at once.
 
 #### Clear All EQ Bands in a Block
 ```
-PUT /speakereq/eq/{block}/clear
+PUT /module/speakereq/eq/{block}/clear
 ```
 Clear all EQ bands in a block by setting them to "off" (type 0).
 
@@ -806,7 +806,7 @@ Get all gain values (input, output, master).
 
 #### Get Master Gain
 ```
-GET /speakereq/gain/master
+GET /module/speakereq/gain/master
 ```
 **Response:**
 ```json
@@ -817,7 +817,7 @@ GET /speakereq/gain/master
 
 #### Set Master Gain
 ```
-PUT /speakereq/gain/master
+PUT /module/speakereq/gain/master
 ```
 **Request Body:**
 ```json
@@ -836,7 +836,7 @@ PUT /speakereq/gain/master
 
 #### Get Input Gain
 ```
-GET /speakereq/gain/input/{channel}
+GET /module/speakereq/gain/input/{channel}
 ```
 **Parameters:**
 - `channel` (path): Channel number (0-1)
@@ -851,7 +851,7 @@ GET /speakereq/gain/input/{channel}
 
 #### Set Input Gain
 ```
-PUT /speakereq/gain/input/{channel}
+PUT /module/speakereq/gain/input/{channel}
 ```
 **Request Body:**
 ```json
@@ -871,7 +871,7 @@ PUT /speakereq/gain/input/{channel}
 
 #### Get Output Gain
 ```
-GET /speakereq/gain/output/{channel}
+GET /module/speakereq/gain/output/{channel}
 ```
 **Parameters:**
 - `channel` (path): Channel number (0-1)
@@ -886,7 +886,7 @@ GET /speakereq/gain/output/{channel}
 
 #### Set Output Gain
 ```
-PUT /speakereq/gain/output/{channel}
+PUT /module/speakereq/gain/output/{channel}
 ```
 **Request Body:**
 ```json
@@ -910,7 +910,7 @@ PUT /speakereq/gain/output/{channel}
 
 #### Get All Delays
 ```
-GET /speakereq/delay
+GET /module/speakereq/delay
 ```
 **Response:**
 ```json
@@ -924,7 +924,7 @@ GET /speakereq/delay
 
 #### Set Delay
 ```
-PUT /speakereq/delay/{channel}
+PUT /module/speakereq/delay/{channel}
 ```
 **Request Body:**
 ```json
@@ -948,7 +948,7 @@ PUT /speakereq/delay/{channel}
 
 #### Get Crossbar Matrix
 ```
-GET /speakereq/crossbar
+GET /module/speakereq/crossbar
 ```
 Get the routing matrix values.
 
@@ -964,7 +964,7 @@ Get the routing matrix values.
 
 #### Set Crossbar Value
 ```
-PUT /speakereq/crossbar/{input}/{output}
+PUT /module/speakereq/crossbar/{input}/{output}
 ```
 Set a single crossbar routing value.
 
@@ -995,7 +995,7 @@ Set a single crossbar routing value.
 
 #### Get Enable Status
 ```
-GET /speakereq/enable
+GET /module/speakereq/enable
 ```
 **Response:**
 ```json
@@ -1007,7 +1007,7 @@ GET /speakereq/enable
 
 #### Set Enable Status
 ```
-PUT /speakereq/enable
+PUT /module/speakereq/enable
 ```
 **Request Body:**
 ```json
@@ -1026,7 +1026,7 @@ PUT /speakereq/enable
 
 #### Refresh Parameter Cache
 ```
-POST /speakereq/refresh
+POST /module/speakereq/refresh
 ```
 Force refresh of parameter cache. Use this if external tools (e.g., direct pw-cli commands) have modified parameters outside the API.
 
@@ -1041,7 +1041,7 @@ Force refresh of parameter cache. Use this if external tools (e.g., direct pw-cl
 
 #### Get License Status
 ```
-GET /speakereq/license
+GET /module/speakereq/license
 ```
 **Response:**
 ```json
@@ -1056,7 +1056,7 @@ GET /speakereq/license
 
 #### Save Current Settings
 ```
-POST /speakereq/settings/save
+POST /module/speakereq/settings/save
 ```
 Trigger saving current settings to file.
 
@@ -1070,7 +1070,7 @@ Trigger saving current settings to file.
 
 #### Get All Parameters
 ```
-GET /speakereq/parameters
+GET /module/speakereq/parameters
 ```
 Get all raw parameters (for advanced users/debugging).
 

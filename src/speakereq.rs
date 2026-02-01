@@ -531,15 +531,15 @@ pub async fn get_status(State(state): State<Arc<AppState>>) -> Result<Json<Statu
 // Create router for speakereq endpoints
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/api/v1/speakereq/structure", get(get_structure))
-        .route("/api/v1/speakereq/io", get(get_io))
-        .route("/api/v1/speakereq/status", get(get_status))
-        .route("/api/v1/speakereq/eq/:block/:band", get(get_eq_band).put(set_eq_band))
-        .route("/api/v1/speakereq/eq/:block/:band/enabled", put(set_eq_band_enabled))
-        .route("/api/v1/speakereq/eq/:block/clear", put(clear_eq_bank))
-        .route("/api/v1/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
-        .route("/api/v1/speakereq/enable", get(get_enable).put(set_enable))
-        .route("/api/v1/speakereq/refresh", post(refresh_cache))
+        .route("/api/module/speakereq/structure", get(get_structure))
+        .route("/api/module/speakereq/io", get(get_io))
+        .route("/api/module/speakereq/status", get(get_status))
+        .route("/api/module/speakereq/eq/:block/:band", get(get_eq_band).put(set_eq_band))
+        .route("/api/module/speakereq/eq/:block/:band/enabled", put(set_eq_band_enabled))
+        .route("/api/module/speakereq/eq/:block/clear", put(clear_eq_bank))
+        .route("/api/module/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
+        .route("/api/module/speakereq/enable", get(get_enable).put(set_enable))
+        .route("/api/module/speakereq/refresh", post(refresh_cache))
         .with_state(state)
 }
 
