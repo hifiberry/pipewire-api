@@ -10,8 +10,7 @@ use tracing::{debug, error, info};
 
 use crate::api_server::{ApiError, AppState};
 use crate::linker::LinkRule;
-use crate::link_manager::apply_link_rule as apply_link_rule_internal;
-use crate::pipewire_client::PipeWireClient;
+use crate::link_manager_cli;
 
 /// Create the router for link management endpoints
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -55,112 +54,52 @@ pub async fn apply_link_rule(
 ) -> Result<Json<LinkResponse>, ApiError> {
     info!("Applying link rule: {:?}", rule);
 
-    // Get PipeWire client
-    let client = PipeWireClient::new()
-        .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
+    // Apply the rule using CLI-based implementation
+    let rule_clone = rule.clone();
+    let results = tokio::task::spawn_blocking(move || {
+        link_manager_cli::apply_link_rule(&rule_clone)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to apply link rule: {}", e)))?;
 
-    // Apply the rule
-    match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), &rule) {
-        Ok(results) => {
-            let success = results.iter().all(|r| r.success);
-            let messages: Vec<String> = results.iter().map(|r| r.message.clone()).collect();
-            let message = messages.join("; ");
-            
-            info!("Link rule application complete: success={}", success);
-            Ok(Json(LinkResponse {
-                success,
-                message: if message.is_empty() { "Link rule applied".to_string() } else { message },
-                details: None,
-            }))
-        }
-        Err(e) => {
-            error!("Failed to apply link rule: {}", e);
-            Err(ApiError::Internal(format!("Failed to apply link rule: {}", e)))
-        }
-    }
+    let success = results.iter().all(|r| r.success);
+    let messages: Vec<String> = results.iter().map(|r| r.message.clone()).collect();
+    let message = messages.join("; ");
+    
+    info!("Link rule application complete: success={}", success);
+    Ok(Json(LinkResponse {
+        success,
+        message: if message.is_empty() { "Link rule applied".to_string() } else { message },
+        details: None,
+    }))
 }
 
 /// List all active PipeWire links
 pub async fn list_links(
     State(_state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<LinkInfo>>, ApiError> {
-    use pipewire as pw;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use std::collections::HashMap;
-    
     debug!("Listing all PipeWire links");
 
-    let client = PipeWireClient::new()
-        .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
+    // Use pwlink to list all links
+    let links = tokio::task::spawn_blocking(|| {
+        crate::pwlink::list_links()
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to list links: {}", e)))?;
 
-    let link_infos: Rc<RefCell<Vec<LinkInfo>>> = Rc::new(RefCell::new(Vec::new()));
-    let link_infos_clone = link_infos.clone();
-    
-    // Also collect node names for reference
-    let node_names: Rc<RefCell<HashMap<u32, String>>> = Rc::new(RefCell::new(HashMap::new()));
-    let node_names_clone = node_names.clone();
-    
-    // Set up timeout
-    let timeout_mainloop = client.mainloop().clone();
-    let _timer = client.mainloop().loop_().add_timer(move |_| {
-        timeout_mainloop.quit();
-    });
-    _timer.update_timer(Some(std::time::Duration::from_secs(2)), None);
-    
-    let _listener = client.registry()
-        .add_listener_local()
-        .global({
-            move |global| {
-                if let Some(props) = &global.props {
-                    // Collect node names
-                    if global.type_ == pw::types::ObjectType::Node {
-                        if let Some(name) = props.get("node.name") {
-                            node_names_clone.borrow_mut().insert(global.id, name.to_string());
-                        }
-                    }
-                    
-                    // Collect links
-                    if global.type_ == pw::types::ObjectType::Link {
-                        let output_node_id = props.get("link.output.node")
-                            .and_then(|s| s.parse::<u32>().ok())
-                            .unwrap_or(0);
-                        let output_port_id = props.get("link.output.port")
-                            .and_then(|s| s.parse::<u32>().ok())
-                            .unwrap_or(0);
-                        let input_node_id = props.get("link.input.node")
-                            .and_then(|s| s.parse::<u32>().ok())
-                            .unwrap_or(0);
-                        let input_port_id = props.get("link.input.port")
-                            .and_then(|s| s.parse::<u32>().ok())
-                            .unwrap_or(0);
-                        
-                        link_infos_clone.borrow_mut().push(LinkInfo {
-                            id: global.id,
-                            output_node_id,
-                            output_port_id,
-                            input_node_id,
-                            input_port_id,
-                            output_node_name: None, // Will fill in after
-                            input_node_name: None,
-                        });
-                    }
-                }
-            }
-        })
-        .register();
-    
-    client.mainloop().run();
-    
-    // Now fill in node names
-    let node_names_map = node_names.borrow();
-    let mut links = link_infos.borrow_mut();
-    for link in links.iter_mut() {
-        link.output_node_name = node_names_map.get(&link.output_node_id).cloned();
-        link.input_node_name = node_names_map.get(&link.input_node_id).cloned();
-    }
-    
-    let result = links.clone();
+    // Convert pwlink::LinkInfo to our LinkInfo structure
+    let result: Vec<LinkInfo> = links.into_iter().map(|link| LinkInfo {
+        id: link.id,
+        output_node_id: 0, // Not available from pwlink
+        output_port_id: link.output_port_id,
+        input_node_id: 0, // Not available from pwlink
+        input_port_id: link.input_port_id,
+        output_node_name: Some(link.output_port_name),
+        input_node_name: Some(link.input_port_name),
+    }).collect();
+
     debug!("Found {} links", result.len());
     Ok(Json(result))
 }
@@ -187,9 +126,6 @@ pub async fn apply_batch_rules(
 ) -> Result<Json<BatchLinkResponse>, ApiError> {
     info!("Applying batch of {} link rules", request.rules.len());
 
-    let client = PipeWireClient::new()
-        .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
-
     let total = request.rules.len();
     let mut successful = 0;
     let mut failed = 0;
@@ -198,10 +134,17 @@ pub async fn apply_batch_rules(
     for (idx, rule) in request.rules.iter().enumerate() {
         debug!("Applying rule {}/{}", idx + 1, total);
         
-        match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), rule) {
-            Ok(link_results) => {
-                let all_success = link_results.iter().all(|r| r.success);
-                let messages: Vec<String> = link_results.iter().map(|r| r.message.clone()).collect();
+        let rule_clone = rule.clone();
+        let link_results = tokio::task::spawn_blocking(move || {
+            link_manager_cli::apply_link_rule(&rule_clone)
+        })
+        .await
+        .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?;
+
+        match link_results {
+            Ok(results_vec) => {
+                let all_success = results_vec.iter().all(|r| r.success);
+                let messages: Vec<String> = results_vec.iter().map(|r| r.message.clone()).collect();
                 let message = messages.join("; ");
                 
                 if all_success {
@@ -261,9 +204,6 @@ pub async fn apply_default_rules(
     info!("Applying default link rules");
     
     let rules = default_link_rules::get_default_rules();
-    let client = PipeWireClient::new()
-        .map_err(|e| ApiError::Internal(format!("Failed to create PipeWire client: {}", e)))?;
-
     let total = rules.len();
     let mut successful = 0;
     let mut failed = 0;
@@ -272,10 +212,17 @@ pub async fn apply_default_rules(
     for (idx, rule) in rules.iter().enumerate() {
         debug!("Applying default rule {}/{}", idx + 1, total);
         
-        match apply_link_rule_internal(client.registry(), client.core(), client.mainloop(), rule) {
-            Ok(link_results) => {
-                let all_success = link_results.iter().all(|r| r.success);
-                let messages: Vec<String> = link_results.iter().map(|r| r.message.clone()).collect();
+        let rule_clone = rule.clone();
+        let link_results = tokio::task::spawn_blocking(move || {
+            link_manager_cli::apply_link_rule(&rule_clone)
+        })
+        .await
+        .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?;
+
+        match link_results {
+            Ok(results_vec) => {
+                let all_success = results_vec.iter().all(|r| r.success);
+                let messages: Vec<String> = results_vec.iter().map(|r| r.message.clone()).collect();
                 let message = messages.join("; ");
                 
                 if all_success {

@@ -6,7 +6,6 @@ pub mod speakereq;
 pub mod linker;
 pub mod links;
 pub mod default_link_rules;
-pub mod link_manager;
 pub mod link_manager_cli;
 pub mod link_scheduler;
 pub mod config;

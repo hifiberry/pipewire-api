@@ -4,9 +4,8 @@ use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 
 use crate::api_server::AppState;
-use crate::link_manager::apply_link_rule;
+use crate::link_manager_cli;
 use crate::linker::LogLevel;
-use crate::pipewire_client::PipeWireClient;
 
 /// Log a message at the specified level
 macro_rules! log_at_level {
@@ -122,14 +121,16 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
 /// Apply a rule safely, handling any PipeWire connection issues
 async fn apply_rule_safe(
     rule: &crate::linker::LinkRule,
-) -> anyhow::Result<Vec<crate::link_manager::LinkRuleResult>> {
-    // Run the blocking PipeWire operations in a blocking task
+) -> anyhow::Result<Vec<link_manager_cli::LinkRuleResult>> {
+    // Run the blocking operations in a blocking task
     let rule = rule.clone();
-    tokio::task::spawn_blocking(move || {
-        let client = PipeWireClient::new()?;
-        apply_link_rule(client.registry(), client.core(), client.mainloop(), &rule)
+    let result = tokio::task::spawn_blocking(move || {
+        link_manager_cli::apply_link_rule(&rule)
     })
-    .await?
+    .await?;
+    
+    // Convert Result<Vec<LinkRuleResult>, String> to anyhow::Result
+    result.map_err(|e| anyhow::anyhow!(e))
 }
 
 /// Apply startup rules immediately
