@@ -595,7 +595,54 @@ def test_status_includes_enabled(api_server):
             assert isinstance(band["enabled"], bool)
 
 
+def test_refresh_cache_after_external_change(api_server):
+    """Test that refresh endpoint updates cache after external pw-cli changes"""
+    block = "output_0"
+    band = 3
+    node_id = find_speakereq_node()
+    assert node_id is not None, "Could not find speakereq2x2 node"
+    
+    # Get initial value via API
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
+    assert response.status_code == 200
+    initial_data = response.json()
+    
+    # Change a parameter directly with pw-cli (outside the API)
+    # Set type to high_shelf (2) using pw-cli
+    subprocess.run([
+        "pw-cli", "set-param", str(node_id), "Props",
+        '{ "params": ["speakereq2x2:output_0_eq_3_type", 2] }'
+    ], check=True, capture_output=True)
+    
+    # Give PipeWire time to process
+    time.sleep(0.1)
+    
+    # Without refresh, API still returns cached (old) value
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
+    assert response.status_code == 200
+    cached_data = response.json()
+    # Cache should still have old value
+    assert cached_data["type"] == initial_data["type"]
+    
+    # Now refresh the cache
+    response = requests.post(f"{api_server}/api/v1/speakereq/refresh")
+    assert response.status_code == 200
+    refresh_result = response.json()
+    assert "message" in refresh_result
+    
+    # After refresh, API should return the new value
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
+    assert response.status_code == 200
+    refreshed_data = response.json()
+    assert refreshed_data["type"] == "high_shelf", f"Expected 'high_shelf' after refresh, got '{refreshed_data['type']}'"
+    
+    # Cleanup: set it back to off
+    subprocess.run([
+        "pw-cli", "set-param", str(node_id), "Props",
+        '{ "params": ["speakereq2x2:output_0_eq_3_type", 0] }'
+    ], check=True, capture_output=True)
+
+
 if __name__ == "__main__":
     # Allow running tests directly
     pytest.main([__file__, "-v"])
-
