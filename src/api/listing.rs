@@ -21,6 +21,7 @@ fn classification_to_string(classification: pwcli::NodeTypeClassification) -> St
         pwcli::NodeTypeClassification::Link => "Link".to_string(),
         pwcli::NodeTypeClassification::Port => "Port".to_string(),
         pwcli::NodeTypeClassification::Client => "Client".to_string(),
+        pwcli::NodeTypeClassification::Driver => "Driver".to_string(),
         pwcli::NodeTypeClassification::Other => "Other".to_string(),
         pwcli::NodeTypeClassification::Unknown => "Unknown".to_string(),
     }
@@ -42,6 +43,11 @@ fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
             "factory" => pwcli::NodeTypeClassification::Other,
             _ => pwcli::NodeTypeClassification::Unknown,
         };
+    }
+    
+    // Check for driver nodes (Dummy-Driver, Freewheel-Driver, etc.)
+    if classification == pwcli::NodeTypeClassification::Unknown && pwcli::is_driver_node(obj) {
+        classification = pwcli::NodeTypeClassification::Driver;
     }
     
     PipeWireObject {

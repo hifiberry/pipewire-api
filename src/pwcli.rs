@@ -27,6 +27,8 @@ pub enum NodeTypeClassification {
     Port,
     /// Client connection
     Client,
+    /// Driver node (Dummy-Driver, Freewheel-Driver, etc.)
+    Driver,
     /// Other known type (modules, factories, etc.)
     Other,
     /// Unknown - media.class not recognized or missing, needs heuristics
@@ -86,6 +88,17 @@ pub fn classify_media_class(media_class: Option<&str>) -> NodeTypeClassification
     }
 }
 
+/// Check if a node is a driver node (Dummy-Driver, Freewheel-Driver, etc.)
+pub fn is_driver_node(obj: &PwObject) -> bool {
+    if let Some(name) = obj.properties.get("node.name") {
+        let name_lower = name.to_lowercase();
+        return name_lower.contains("driver") 
+            || name_lower == "dummy-driver"
+            || name_lower == "freewheel-driver";
+    }
+    false
+}
+
 /// Initialize or refresh the node name cache
 fn refresh_node_cache() -> Result<(), String> {
     let nodes = list_nodes()?;
@@ -125,6 +138,7 @@ impl PwObject {
             .or_else(|| self.get("device.name"))
             .or_else(|| self.get("port.name"))
             .or_else(|| self.get("client.name"))
+            .or_else(|| self.get("application.name"))
             .or_else(|| self.get("module.name"))
             .or_else(|| self.get("factory.name"))
             .or_else(|| self.get("link.name"))
@@ -169,6 +183,28 @@ impl PwObject {
     /// Check if this is a specific type
     pub fn is_type(&self, type_name: &str) -> bool {
         self.object_type.contains(type_name)
+    }
+    
+    /// Check if this is an internal PipeWire/WirePlumber client
+    /// These are clients that use protocol-native and have name containing "pipewire" or "wireplumber"
+    pub fn is_internal_client(&self) -> bool {
+        // Check if it's using protocol-native
+        let is_native = self.get("pipewire.protocol")
+            .map(|p| p == "protocol-native")
+            .unwrap_or(false);
+        
+        if !is_native {
+            return false;
+        }
+        
+        // Check if the name contains "pipewire" or "wireplumber" (case insensitive)
+        if let Some(name) = self.get("application.name")
+            .or_else(|| self.get("client.name")) {
+            let name_lower = name.to_lowercase();
+            return name_lower.contains("pipewire") || name_lower.contains("wireplumber");
+        }
+        
+        false
     }
 }
 

@@ -39,6 +39,7 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
         pwcli::NodeTypeClassification::Link => return false,
         pwcli::NodeTypeClassification::Port => return false,
         pwcli::NodeTypeClassification::Client => return false,
+        pwcli::NodeTypeClassification::Driver => return false,
         pwcli::NodeTypeClassification::Other => return false,
         pwcli::NodeTypeClassification::Unknown => {
             // Apply additional heuristics for unknown cases
@@ -51,6 +52,10 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
         let name_lower = name.to_lowercase();
         // Skip MIDI nodes
         if name_lower.contains("midi") {
+            return false;
+        }
+        // Skip driver nodes
+        if name_lower.contains("driver") {
             return false;
         }
         // Include known audio nodes
@@ -150,19 +155,37 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
     let mut dot = String::new();
     
     dot.push_str("digraph PipeWire {\n");
-    dot.push_str("    rankdir=LR;\n");
+    dot.push_str("    rankdir=TB;\n");
     dot.push_str("    node [shape=box, style=filled];\n");
+    dot.push_str("    newrank=true;\n");
+    dot.push_str("    compound=true;\n");
     dot.push_str("    \n");
     
     // Collect audio nodes and their IDs
     let mut audio_node_ids: HashSet<u32> = HashSet::new();
     let mut nodes: Vec<&pwcli::PwObject> = Vec::new();
     let mut devices: Vec<&pwcli::PwObject> = Vec::new();
+    let mut all_clients: HashMap<u32, &pwcli::PwObject> = HashMap::new();
+    let mut node_to_client: HashMap<u32, u32> = HashMap::new();
     
+    // First pass: collect clients
+    for obj in objects {
+        if obj.object_type == "Client" {
+            all_clients.insert(obj.id, obj);
+        }
+    }
+    
+    // Second pass: collect nodes and map to clients
     for obj in objects {
         if obj.object_type == "Node" && is_audio_node(obj) {
             audio_node_ids.insert(obj.id);
             nodes.push(obj);
+            // Track client.id for this node
+            if let Some(client_id_str) = obj.properties.get("client.id") {
+                if let Ok(client_id) = client_id_str.parse::<u32>() {
+                    node_to_client.insert(obj.id, client_id);
+                }
+            }
         } else if obj.object_type == "Device" && is_audio_node(obj) {
             devices.push(obj);
         }
@@ -175,6 +198,17 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
     let mut filter_chain_input_ids: HashSet<u32> = HashSet::new();
     let mut filter_chain_output_ids: HashSet<u32> = HashSet::new();
     let mut filter_chain_map: HashMap<u32, &FilterChain> = HashMap::new(); // maps input_id or output_id -> chain
+    
+    // Track sources (inputs) and sinks (outputs) for ranking
+    let mut source_nodes: Vec<String> = Vec::new();
+    let mut sink_nodes: Vec<String> = Vec::new();
+    let mut filter_nodes: Vec<String> = Vec::new();
+    
+    // Track which clients are connected to audio nodes
+    let mut connected_client_ids: HashSet<u32> = HashSet::new();
+    for (_, client_id) in &node_to_client {
+        connected_client_ids.insert(*client_id);
+    }
     
     for chain in &filter_chains {
         filter_chain_input_ids.insert(chain.input_id);
@@ -216,38 +250,55 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         }
     }
     
-    // Add devices subgraph
-    if !devices.is_empty() {
-        dot.push_str("    subgraph cluster_devices {\n");
-        dot.push_str("        label=\"Devices\";\n");
-        dot.push_str("        style=dashed;\n");
-        dot.push_str("        color=gray;\n");
-        for device in &devices {
-            let name = device.display_name();
+    // Add clients that are connected to audio nodes (filter out internal pipewire/wireplumber clients)
+    let connected_clients: Vec<_> = connected_client_ids.iter()
+        .filter_map(|id| all_clients.get(id))
+        .filter(|client| !client.is_internal_client())
+        .collect();
+    
+    // Create a set of filtered client IDs for edge drawing
+    let filtered_client_ids: HashSet<u32> = connected_clients.iter().map(|c| c.id).collect();
+    
+    // ========== Audio Graph ==========
+    
+    // Add audio graph in its own cluster
+    dot.push_str("    // Audio Graph\n");
+    dot.push_str("    subgraph cluster_graph {\n");
+    dot.push_str("        label=\"\";\n");
+    dot.push_str("        style=invis;\n");
+    dot.push_str("        \n");
+    
+    // Add clients
+    if !connected_clients.is_empty() {
+        dot.push_str("        // Clients\n");
+        for client in &connected_clients {
+            let name = client.display_name();
             let escaped_name = name.replace('"', "\\\"");
             dot.push_str(&format!(
-                "        dev_{} [label=\"{}\", fillcolor=lightgray];\n",
-                device.id, escaped_name
+                "        client_{} [label=\"{}\\nClient ID: {}\", fillcolor=lavender, shape=ellipse];\n",
+                client.id, escaped_name, client.id
             ));
         }
-        dot.push_str("    }\n\n");
+        dot.push_str("\n");
     }
     
-    // Add filter-chains as combined nodes
+    // 4. Add filter-chains as combined nodes
     if !filter_chains.is_empty() {
-        dot.push_str("    // Filter Chains (combined input+output)\n");
+        dot.push_str("        // Filter Chains (combined input+output)\n");
         for chain in &filter_chains {
             let escaped_name = chain.name.replace('"', "\\\"");
+            let node_name = format!("chain_{}", chain.input_id);
             dot.push_str(&format!(
-                "    chain_{} [label=\"{}\\nID: {}/{}\", fillcolor=lightyellow, style=\"filled,bold\"];\n",
-                chain.input_id, escaped_name, chain.input_id, chain.output_id
+                "        {} [label=\"{}\\nID: {}/{}\", fillcolor=lightyellow, style=\"filled,bold\"];\n",
+                node_name, escaped_name, chain.input_id, chain.output_id
             ));
+            filter_nodes.push(node_name);
         }
         dot.push('\n');
     }
     
     // Add regular nodes (excluding filter-chain members)
-    dot.push_str("    // Audio Nodes\n");
+    dot.push_str("        // Audio Nodes\n");
     for node in &nodes {
         // Skip nodes that are part of a filter-chain
         if filter_chain_input_ids.contains(&node.id) || filter_chain_output_ids.contains(&node.id) {
@@ -256,33 +307,45 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         
         let name = node.display_name();
         let escaped_name = name.replace('"', "\\\"");
+        let node_name = format!("node_{}", node.id);
         
-        // Determine color based on media.class
-        let color = if let Some(media_class) = node.properties.get("media.class") {
+        // Determine color and category based on media.class
+        let (color, category) = if let Some(media_class) = node.properties.get("media.class") {
             let class_lower = media_class.to_lowercase();
             if class_lower.contains("sink") || class_lower.contains("playback") {
-                "lightblue"
+                ("lightblue", "sink")
             } else if class_lower.contains("source") || class_lower.contains("capture") {
-                "lightgreen"
+                ("lightgreen", "source")
             } else if class_lower.contains("filter") {
-                "lightyellow"
+                ("lightyellow", "filter")
+            } else if class_lower.contains("stream/output") {
+                ("paleturquoise", "sink")  // Stream outputs are sinks
+            } else if class_lower.contains("stream/input") {
+                ("palegreen", "source")  // Stream inputs are sources
             } else {
-                "white"
+                ("white", "filter")
             }
         } else {
-            "white"
+            ("white", "filter")
         };
         
+        // Track for ranking
+        match category {
+            "source" => source_nodes.push(node_name.clone()),
+            "sink" => sink_nodes.push(node_name.clone()),
+            _ => filter_nodes.push(node_name.clone()),
+        }
+        
         dot.push_str(&format!(
-            "    node_{} [label=\"{}\\nID: {}\", fillcolor={}];\n",
-            node.id, escaped_name, node.id, color
+            "        {} [label=\"{}\\nID: {}\", fillcolor={}];\n",
+            node_name, escaped_name, node.id, color
         ));
     }
     dot.push('\n');
     
     // Add links between nodes (aggregate port links to node links)
     // For filter-chains, map input/output node IDs to the chain's input_id
-    dot.push_str("    // Links\n");
+    dot.push_str("        // Links\n");
     let mut node_links: HashSet<(String, String)> = HashSet::new();
     
     // Helper to get the graph node name for a PipeWire node ID
@@ -316,19 +379,44 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
     }
     
     for (from, to) in node_links {
-        dot.push_str(&format!("    {} -> {};\n", from, to));
+        dot.push_str(&format!("        {} -> {};\n", from, to));
     }
     
-    // Add legend
-    dot.push_str("\n    // Legend\n");
-    dot.push_str("    subgraph cluster_legend {\n");
-    dot.push_str("        label=\"Legend\";\n");
-    dot.push_str("        style=solid;\n");
-    dot.push_str("        legend_sink [label=\"Sink/Playback\", fillcolor=lightblue];\n");
-    dot.push_str("        legend_source [label=\"Source/Capture\", fillcolor=lightgreen];\n");
-    dot.push_str("        legend_filter [label=\"Filter\", fillcolor=lightyellow];\n");
-    dot.push_str("        legend_chain [label=\"Filter-Chain\", fillcolor=lightyellow, style=\"filled,bold\"];\n");
-    dot.push_str("    }\n");
+    // Add client-to-node connections (dashed lines)
+    dot.push_str("\n        // Client connections\n");
+    for node in &nodes {
+        if filter_chain_input_ids.contains(&node.id) || filter_chain_output_ids.contains(&node.id) {
+            continue;
+        }
+        if let Some(&client_id) = node_to_client.get(&node.id) {
+            if filtered_client_ids.contains(&client_id) {
+                dot.push_str(&format!(
+                    "        client_{} -> node_{} [style=dashed, color=gray];\n",
+                    client_id, node.id
+                ));
+            }
+        }
+    }
+    // Also add client connections for filter-chains (use input node's client)
+    for chain in &filter_chains {
+        if let Some(&client_id) = node_to_client.get(&chain.input_id) {
+            if filtered_client_ids.contains(&client_id) {
+                dot.push_str(&format!(
+                    "        client_{} -> chain_{} [style=dashed, color=gray];\n",
+                    client_id, chain.input_id
+                ));
+            }
+        }
+    }
+    
+    // Close the graph cluster
+    dot.push_str("    }\n\n");
+    
+    // Rank sinks at bottom
+    if !sink_nodes.is_empty() {
+        dot.push_str("    // Rank: sinks at bottom\n");
+        dot.push_str(&format!("    {{ rank=max; {} }}\n", sink_nodes.join("; ")));
+    }
     
     dot.push_str("}\n");
     
