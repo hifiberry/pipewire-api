@@ -57,7 +57,8 @@ This project provides a REST API server and command-line tools for controlling P
     sshpass -f ~/.sshpass.XXX ssh XXX systemctl restart --user pipewire-api
   ```
 - Ask the user if you don't know what remote system should be used
-- For development tests, usually cargo build is enough. Debian packaging is only needed when the user asks for a packaging test or wants to deploy on a remote system.
+- **For development tests, use `cargo build` - do NOT use `build-all` or Debian packaging**
+- Debian packaging is only needed when the user explicitly asks for a packaging test or wants to deploy on a remote system
 
 ## Documentation
 
