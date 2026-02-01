@@ -1,3 +1,17 @@
+pipewire-api (2.0.2-1) stable; urgency=medium
+
+  * Graph improvements:
+    - Changed to vertical layout (sources at top, sinks at bottom)
+    - Combined filter-chain input/output nodes into single visual elements
+    - Added connected clients to the graph with dashed edges
+    - Filtered out internal PipeWire/WirePlumber clients from graph
+    - Filtered out driver nodes (Dummy-Driver, Freewheel-Driver)
+    - Removed devices and legend for cleaner visualization
+  * Added NodeTypeClassification with Driver type detection
+  * Added is_internal_client() to filter protocol-native pipewire/wireplumber clients
+
+ -- HiFiBerry <info@hifiberry.com>  Sat, 01 Feb 2026 18:00:00 +0100
+
 pipewire-api (2.0.1-1) stable; urgency=medium
 
   * Fixed flaky speakereq tests caused by non-deterministic node lookup
