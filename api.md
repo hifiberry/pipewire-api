@@ -1077,6 +1077,21 @@ PUT /speakereq/enable
 }
 ```
 
+#### Refresh Parameter Cache
+```
+POST /speakereq/refresh
+```
+Force refresh of parameter cache. Use this if external tools (e.g., direct pw-cli commands) have modified parameters outside the API.
+
+**Response:**
+```json
+{
+  "message": "Parameter cache refreshed"
+}
+```
+
+**Note:** The API caches EQ and other parameters to improve performance. This cache is automatically cleared when setting parameters via the API. Only use this endpoint if you've modified parameters using external tools.
+
 #### Get License Status
 ```
 GET /speakereq/license

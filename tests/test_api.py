@@ -154,7 +154,7 @@ def test_get_structure(api_server):
 
 def test_get_io(api_server):
     """Test GET /api/v1/speakereq/speakereq/io endpoint"""
-    response = requests.get(f"{api_server}/api/v1/io")
+    response = requests.get(f"{api_server}/api/v1/speakereq/io")
     assert response.status_code == 200
     
     data = response.json()
@@ -164,7 +164,7 @@ def test_get_io(api_server):
 
 def test_get_enable(api_server):
     """Test GET /api/v1/speakereq/enable endpoint"""
-    response = requests.get(f"{api_server}/api/v1/enable")
+    response = requests.get(f"{api_server}/api/v1/speakereq/enable")
     assert response.status_code == 200
     
     data = response.json()
@@ -175,13 +175,13 @@ def test_get_enable(api_server):
 def test_set_and_get_enable(api_server):
     """Test setting and getting the enable parameter"""
     # Get initial state
-    response = requests.get(f"{api_server}/api/v1/enable")
+    response = requests.get(f"{api_server}/api/v1/speakereq/enable")
     initial_enabled = response.json()["enabled"]
     
     # Toggle it
     new_value = not initial_enabled
     response = requests.put(
-        f"{api_server}/api/v1/enable",
+        f"{api_server}/api/v1/speakereq/enable",
         json={"enabled": new_value}
     )
     assert response.status_code == 200
@@ -189,7 +189,7 @@ def test_set_and_get_enable(api_server):
     time.sleep(0.1)
     
     # Verify it changed via API
-    response = requests.get(f"{api_server}/api/v1/enable")
+    response = requests.get(f"{api_server}/api/v1/speakereq/enable")
     assert response.json()["enabled"] == new_value
     
     # Verify it changed in PipeWire directly
@@ -200,14 +200,14 @@ def test_set_and_get_enable(api_server):
     
     # Restore original value
     requests.put(
-        f"{api_server}/api/v1/enable",
+        f"{api_server}/api/v1/speakereq/enable",
         json={"enabled": initial_enabled}
     )
 
 
 def test_get_master_gain(api_server):
     """Test GET /api/v1/speakereq/gain/master endpoint"""
-    response = requests.get(f"{api_server}/api/v1/gain/master")
+    response = requests.get(f"{api_server}/api/v1/speakereq/gain/master")
     assert response.status_code == 200
     
     data = response.json()
@@ -219,13 +219,13 @@ def test_get_master_gain(api_server):
 def test_set_and_get_master_gain(api_server):
     """Test setting and getting master gain"""
     # Get initial value
-    response = requests.get(f"{api_server}/api/v1/gain/master")
+    response = requests.get(f"{api_server}/api/v1/speakereq/gain/master")
     initial_gain = response.json()["gain"]
     
     # Set new value
     test_gain = -6.0
     response = requests.put(
-        f"{api_server}/api/v1/gain/master",
+        f"{api_server}/api/v1/speakereq/gain/master",
         json={"gain": test_gain}
     )
     assert response.status_code == 200
@@ -233,7 +233,7 @@ def test_set_and_get_master_gain(api_server):
     time.sleep(0.1)
     
     # Verify it changed via API
-    response = requests.get(f"{api_server}/api/v1/gain/master")
+    response = requests.get(f"{api_server}/api/v1/speakereq/gain/master")
     new_gain = response.json()["gain"]
     assert abs(new_gain - test_gain) < 0.1, f"Expected {test_gain}, got {new_gain}"
     
@@ -245,7 +245,7 @@ def test_set_and_get_master_gain(api_server):
     
     # Restore original value
     requests.put(
-        f"{api_server}/api/v1/gain/master",
+        f"{api_server}/api/v1/speakereq/gain/master",
         json={"gain": initial_gain}
     )
 
@@ -254,14 +254,14 @@ def test_invalid_master_gain(api_server):
     """Test that invalid gain values are rejected"""
     # Too low
     response = requests.put(
-        f"{api_server}/api/v1/gain/master",
+        f"{api_server}/api/v1/speakereq/gain/master",
         json={"gain": -100.0}
     )
     assert response.status_code == 400
     
     # Too high
     response = requests.put(
-        f"{api_server}/api/v1/gain/master",
+        f"{api_server}/api/v1/speakereq/gain/master",
         json={"gain": 50.0}
     )
     assert response.status_code == 400
@@ -269,7 +269,7 @@ def test_invalid_master_gain(api_server):
 
 def test_get_eq_band(api_server):
     """Test GET /api/v1/speakereq/eq/{block}/{band} endpoint"""
-    response = requests.get(f"{api_server}/api/v1/eq/output_0/1")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/output_0/1")
     assert response.status_code == 200
     
     data = response.json()
@@ -285,7 +285,7 @@ def test_set_and_get_eq_band(api_server):
     band = 5
     
     # Get initial state
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     initial_eq = response.json()
     
     # Set new EQ values
@@ -296,7 +296,7 @@ def test_set_and_get_eq_band(api_server):
         "gain": 3.0
     }
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=test_eq
     )
     assert response.status_code == 200
@@ -304,7 +304,7 @@ def test_set_and_get_eq_band(api_server):
     time.sleep(0.1)
     
     # Verify it changed via API
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["type"] == "peaking"
     assert abs(data["frequency"] - 1000.0) < 1.0
@@ -336,7 +336,7 @@ def test_set_and_get_eq_band(api_server):
     
     # Restore original values
     requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=initial_eq
     )
 
@@ -348,28 +348,28 @@ def test_invalid_eq_parameters(api_server):
     
     # Invalid frequency (too low)
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json={"type": "peaking", "frequency": 10.0, "q": 1.0, "gain": 0.0}
     )
     assert response.status_code == 400
     
     # Invalid Q (too high)
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json={"type": "peaking", "frequency": 1000.0, "q": 20.0, "gain": 0.0}
     )
     assert response.status_code == 400
     
     # Invalid gain (too high)
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json={"type": "peaking", "frequency": 1000.0, "q": 1.0, "gain": 50.0}
     )
     assert response.status_code == 400
     
     # Invalid EQ type
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json={"type": "invalid_type", "frequency": 1000.0, "q": 1.0, "gain": 0.0}
     )
     assert response.status_code == 400
@@ -388,7 +388,7 @@ def test_all_eq_types(api_server):
     for eq_type in eq_types:
         # Set EQ type
         response = requests.put(
-            f"{api_server}/api/v1/eq/{block}/{band}",
+            f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
             json={"type": eq_type, "frequency": 1000.0, "q": 1.0, "gain": 0.0}
         )
         assert response.status_code == 200, f"Failed to set type {eq_type}"
@@ -396,14 +396,14 @@ def test_all_eq_types(api_server):
         time.sleep(0.05)
         
         # Verify
-        response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+        response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
         data = response.json()
         assert data["type"] == eq_type, f"Expected {eq_type}, got {data['type']}"
 
 
 def test_eq_band_enabled_field(api_server):
     """Test that EQ band GET returns enabled field"""
-    response = requests.get(f"{api_server}/api/v1/eq/output_0/1")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/output_0/1")
     assert response.status_code == 200
     
     data = response.json()
@@ -417,7 +417,7 @@ def test_set_eq_band_with_enabled(api_server):
     band = 3
     
     # Get initial state
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     initial_eq = response.json()
     
     # Set EQ with enabled=false
@@ -429,7 +429,7 @@ def test_set_eq_band_with_enabled(api_server):
         "enabled": False
     }
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=test_eq
     )
     assert response.status_code == 200
@@ -437,7 +437,7 @@ def test_set_eq_band_with_enabled(api_server):
     time.sleep(0.1)
     
     # Verify it changed via API
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["enabled"] == False
     
@@ -449,7 +449,7 @@ def test_set_eq_band_with_enabled(api_server):
     # Set with enabled=true
     test_eq["enabled"] = True
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=test_eq
     )
     assert response.status_code == 200
@@ -457,7 +457,7 @@ def test_set_eq_band_with_enabled(api_server):
     time.sleep(0.1)
     
     # Verify enabled is now true
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["enabled"] == True
     
@@ -467,7 +467,7 @@ def test_set_eq_band_with_enabled(api_server):
     
     # Restore original values
     requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=initial_eq
     )
 
@@ -485,7 +485,7 @@ def test_set_eq_band_without_enabled(api_server):
         "gain": -3.0
     }
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=test_eq
     )
     assert response.status_code == 200
@@ -493,7 +493,7 @@ def test_set_eq_band_without_enabled(api_server):
     time.sleep(0.1)
     
     # Verify enabled defaults to true
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["enabled"] == True, "Enabled should default to true when not specified"
     
@@ -517,7 +517,7 @@ def test_dedicated_enabled_endpoint(api_server):
         "enabled": True
     }
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}",
         json=test_eq
     )
     assert response.status_code == 200
@@ -525,13 +525,13 @@ def test_dedicated_enabled_endpoint(api_server):
     time.sleep(0.1)
     
     # Get initial state to verify parameters
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     initial_data = response.json()
     assert initial_data["enabled"] == True
     
     # Use dedicated endpoint to disable the band
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}/enabled",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}/enabled",
         json={"enabled": False}
     )
     assert response.status_code == 200
@@ -539,7 +539,7 @@ def test_dedicated_enabled_endpoint(api_server):
     time.sleep(0.1)
     
     # Verify enabled changed but other parameters remain the same
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["enabled"] == False, "Enabled should be false"
     assert data["type"] == "notch", "Type should remain unchanged"
@@ -554,7 +554,7 @@ def test_dedicated_enabled_endpoint(api_server):
     
     # Re-enable using dedicated endpoint
     response = requests.put(
-        f"{api_server}/api/v1/eq/{block}/{band}/enabled",
+        f"{api_server}/api/v1/speakereq/eq/{block}/{band}/enabled",
         json={"enabled": True}
     )
     assert response.status_code == 200
@@ -562,7 +562,7 @@ def test_dedicated_enabled_endpoint(api_server):
     time.sleep(0.1)
     
     # Verify enabled changed back
-    response = requests.get(f"{api_server}/api/v1/eq/{block}/{band}")
+    response = requests.get(f"{api_server}/api/v1/speakereq/eq/{block}/{band}")
     data = response.json()
     assert data["enabled"] == True
     
@@ -575,7 +575,7 @@ def test_dedicated_enabled_endpoint(api_server):
 
 def test_status_includes_enabled(api_server):
     """Test that GET /api/v1/speakereq/status includes enabled for all EQ bands"""
-    response = requests.get(f"{api_server}/api/v1/status")
+    response = requests.get(f"{api_server}/api/v1/speakereq/status")
     assert response.status_code == 200
     
     data = response.json()

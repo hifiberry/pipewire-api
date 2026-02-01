@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -257,21 +257,26 @@ pub async fn set_eq_band(
     
     let type_id = eq_type_from_string(&eq_band.eq_type)?;
     
-    // Set all parameters
-    let type_key = format!("{}_eq_{}_type", block, band);
-    let freq_key = format!("{}_eq_{}_f", block, band);
-    let q_key = format!("{}_eq_{}_q", block, band);
-    let gain_key = format!("{}_eq_{}_gain", block, band);
-    let enabled_key = format!("{}_eq_{}_enabled", block, band);
+    // Build parameter keys with speakereq2x2 prefix
+    let type_key = format!("speakereq2x2:{}_eq_{}_type", block, band);
+    let freq_key = format!("speakereq2x2:{}_eq_{}_f", block, band);
+    let q_key = format!("speakereq2x2:{}_eq_{}_q", block, band);
+    let gain_key = format!("speakereq2x2:{}_eq_{}_gain", block, band);
+    let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block, band);
     
-    state.set_parameter(&type_key, ParameterValue::Int(type_id))?;
-    state.set_parameter(&freq_key, ParameterValue::Float(eq_band.frequency))?;
-    state.set_parameter(&q_key, ParameterValue::Float(eq_band.q))?;
-    state.set_parameter(&gain_key, ParameterValue::Float(eq_band.gain))?;
+    // Batch all parameters into a single pw-cli call
+    let mut params = std::collections::HashMap::new();
+    params.insert(type_key, crate::parameters::ParameterValue::Int(type_id));
+    params.insert(freq_key, crate::parameters::ParameterValue::Float(eq_band.frequency));
+    params.insert(q_key, crate::parameters::ParameterValue::Float(eq_band.q));
+    params.insert(gain_key, crate::parameters::ParameterValue::Float(eq_band.gain));
     
     // Set enabled parameter, default to true if not provided
     let enabled = eq_band.enabled.unwrap_or(true);
-    state.set_parameter(&enabled_key, ParameterValue::Bool(enabled))?;
+    params.insert(enabled_key, crate::parameters::ParameterValue::Bool(enabled));
+    
+    // Set all parameters at once
+    state.set_parameters(params)?;
     
     Ok(Json(eq_band))
 }
@@ -280,11 +285,14 @@ pub async fn clear_eq_bank(
     State(state): State<Arc<AppState>>,
     Path(block): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Clear all 20 EQ bands by setting them to "off" (type = 0)
+    // Clear all 20 EQ bands by setting them to "off" (type = 0) in a single call
+    let mut params = std::collections::HashMap::new();
     for band in 1..=20 {
-        let type_key = format!("{}_eq_{}_type", block, band);
-        state.set_parameter(&type_key, ParameterValue::Int(0))?;
+        let type_key = format!("speakereq2x2:{}_eq_{}_type", block, band);
+        params.insert(type_key, crate::parameters::ParameterValue::Int(0));
     }
+    
+    state.set_parameters(params)?;
     
     Ok(Json(serde_json::json!({
         "block": block,
@@ -346,7 +354,7 @@ pub async fn set_eq_band_enabled(
     Path((block, band)): Path<(String, u32)>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<EnableValue>, ApiError> {
-    let enabled_key = format!("{}_eq_{}_enabled", block, band);
+    let enabled_key = format!("speakereq2x2:{}_eq_{}_enabled", block, band);
     state.set_parameter(&enabled_key, ParameterValue::Bool(enable_value.enabled))?;
     
     Ok(Json(enable_value))
@@ -531,5 +539,16 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/speakereq/eq/:block/clear", put(clear_eq_bank))
         .route("/api/v1/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
         .route("/api/v1/speakereq/enable", get(get_enable).put(set_enable))
+        .route("/api/v1/speakereq/refresh", post(refresh_cache))
         .with_state(state)
+}
+
+/// Refresh parameter cache (use if external tools modified parameters)
+pub async fn refresh_cache(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    state.refresh_params_cache()?;
+    Ok(Json(serde_json::json!({
+        "message": "Parameter cache refreshed"
+    })))
 }
