@@ -43,7 +43,21 @@ This project provides a REST API server and command-line tools for controlling P
 
 - Use `RUST_LOG=info cargo run` to run the API server with logging enabled
 - Default port is 2716, can be changed with `-p` flag
-- Do not use `--localhost` flag 
+- Do not use `--localhost` flag
+- **Development and debugging should be done locally as much as possible**
+- For remote testing/debugging, use sshpass to run commands on target systems:
+  ```bash
+  sshpass -f ~/.sshpass.XXX ssh XXX <command>
+  ```
+- To build and deploy to a remote system:
+  ```bash
+  cd ~/hifiberry-os/packages; rm pw-api/*.deb; ./build-all ; \
+    sshpass -f ~/.sshpass.XXX scp pw-api/*.deb XXX:; \
+    sshpass -f ~/.sshpass.XXX ssh XXX sudo dpkg -i *.deb; \
+    sshpass -f ~/.sshpass.XXX ssh XXX systemctl restart --user pipewire-api
+  ```
+- Ask the user if you don't know what remote system should be used
+- For development tests, usually cargo build is enough. Debian packaging is only needed when the user asks for a packaging test or wants to deploy on a remote system.
 
 ## Documentation
 
