@@ -1,14 +1,62 @@
 import requests
 import pytest
+import subprocess
+import os
+import time
+import signal
+import socket
 from pipewire_utils import get_pipewire_param, verify_param_set
 
-# Base URL for the API
-BASE_URL = "http://localhost:2716"
+
+def find_free_port():
+    """Find an available port for the test server"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
 
 
-def find_riaa_node():
+@pytest.fixture(scope="module")
+def api_server():
+    """Start the API server for testing"""
+    port = find_free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    
+    # Build the server if not already built
+    build_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.run(
+        ["cargo", "build", "--release", "--bin", "pipewire-api"],
+        cwd=build_dir,
+        check=True,
+        capture_output=True
+    )
+    
+    # Start the server
+    server_path = os.path.join(build_dir, "target", "release", "pipewire-api")
+    process = subprocess.Popen(
+        [server_path, "--port", str(port), "--localhost"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        preexec_fn=os.setsid
+    )
+    
+    # Wait for server to start
+    time.sleep(1.0)
+    
+    # Check if server is running
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        raise RuntimeError(f"Server failed to start:\nStdout: {stdout.decode()}\nStderr: {stderr.decode()}")
+    
+    yield base_url
+    
+    # Cleanup: kill the server
+    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    process.wait(timeout=5)
+
+
+def find_riaa_node(base_url):
     """Find RIAA node in the PipeWire graph."""
-    response = requests.get(f"{BASE_URL}/api/v1/ls")
+    response = requests.get(f"{base_url}/api/v1/ls")
     assert response.status_code == 200
     data = response.json()
     
@@ -20,18 +68,18 @@ def find_riaa_node():
     pytest.skip("RIAA node not found")
 
 
-def test_find_riaa_node():
+def test_find_riaa_node(api_server):
     """Test that we can find the RIAA node."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     assert node_id is not None
     assert isinstance(node_id, int)
 
 
-def test_get_config():
+def test_get_config(api_server):
     """Test getting RIAA configuration."""
-    find_riaa_node()  # Ensure node exists
+    find_riaa_node(api_server)  # Ensure node exists
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/config")
+    response = requests.get(f"{api_server}/api/module/riaa/config")
     assert response.status_code == 200
     
     config = response.json()
@@ -46,18 +94,18 @@ def test_get_config():
     assert "notch_q_factor" in config
 
 
-def test_set_default():
+def test_set_default(api_server):
     """Test setting RIAA to default values and verify they persist."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     
     # First set some non-default values
-    requests.put(f"{BASE_URL}/api/module/riaa/gain", json={"gain_db": 5.0})
-    requests.put(f"{BASE_URL}/api/module/riaa/subsonic", json={"filter": 1})
-    requests.put(f"{BASE_URL}/api/module/riaa/riaa-enable", json={"enabled": True})
-    requests.put(f"{BASE_URL}/api/module/riaa/declick", json={"enabled": True})
+    requests.put(f"{api_server}/api/module/riaa/gain", json={"gain_db": 5.0})
+    requests.put(f"{api_server}/api/module/riaa/subsonic", json={"filter": 1})
+    requests.put(f"{api_server}/api/module/riaa/riaa-enable", json={"enabled": True})
+    requests.put(f"{api_server}/api/module/riaa/declick", json={"enabled": True})
     
     # Reset to defaults
-    response = requests.put(f"{BASE_URL}/api/module/riaa/set-default")
+    response = requests.put(f"{api_server}/api/module/riaa/set-default")
     assert response.status_code == 200
     
     result = response.json()
@@ -74,11 +122,11 @@ def test_set_default():
         "Declick Enable not reset to False"
 
 
-def test_get_gain():
+def test_get_gain(api_server):
     """Test getting RIAA gain."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/gain")
+    response = requests.get(f"{api_server}/api/module/riaa/gain")
     assert response.status_code == 200
     
     data = response.json()
@@ -86,12 +134,12 @@ def test_get_gain():
     assert isinstance(data["gain_db"], (int, float))
 
 
-def test_set_gain():
+def test_set_gain(api_server):
     """Test setting RIAA gain and verify it persists in PipeWire."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     
     # Set gain to 3.5 dB via API
-    response = requests.put(f"{BASE_URL}/api/module/riaa/gain", json={"gain_db": 3.5})
+    response = requests.put(f"{api_server}/api/module/riaa/gain", json={"gain_db": 3.5})
     assert response.status_code == 200
     
     result = response.json()
@@ -103,11 +151,11 @@ def test_set_gain():
         "Gain parameter was not set in PipeWire"
 
 
-def test_get_subsonic_filter():
+def test_get_subsonic_filter(api_server):
     """Test getting RIAA subsonic filter setting."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/subsonic")
+    response = requests.get(f"{api_server}/api/module/riaa/subsonic")
     assert response.status_code == 200
     
     data = response.json()
@@ -115,11 +163,11 @@ def test_get_subsonic_filter():
     assert isinstance(data["filter"], int)
 
 
-def test_set_subsonic_filter():
+def test_set_subsonic_filter(api_server):
     """Test setting RIAA subsonic filter and verify it persists."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{BASE_URL}/api/module/riaa/subsonic", json={"filter": 1})
+    response = requests.put(f"{api_server}/api/module/riaa/subsonic", json={"filter": 1})
     assert response.status_code == 200
     
     result = response.json()
@@ -131,11 +179,11 @@ def test_set_subsonic_filter():
         "Subsonic filter not set in PipeWire"
 
 
-def test_get_riaa_enable():
+def test_get_riaa_enable(api_server):
     """Test getting RIAA enable status."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/riaa-enable")
+    response = requests.get(f"{api_server}/api/module/riaa/riaa-enable")
     assert response.status_code == 200
     
     data = response.json()
@@ -143,11 +191,11 @@ def test_get_riaa_enable():
     assert isinstance(data["enabled"], bool)
 
 
-def test_set_riaa_enable():
+def test_set_riaa_enable(api_server):
     """Test setting RIAA enable and verify it persists."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{BASE_URL}/api/module/riaa/riaa-enable", json={"enabled": True})
+    response = requests.put(f"{api_server}/api/module/riaa/riaa-enable", json={"enabled": True})
     assert response.status_code == 200
     
     result = response.json()
@@ -159,11 +207,11 @@ def test_set_riaa_enable():
         "RIAA Enable not set in PipeWire"
 
 
-def test_get_declick_enable():
+def test_get_declick_enable(api_server):
     """Test getting declick enable status."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/declick")
+    response = requests.get(f"{api_server}/api/module/riaa/declick")
     assert response.status_code == 200
     
     data = response.json()
@@ -171,11 +219,11 @@ def test_get_declick_enable():
     assert isinstance(data["enabled"], bool)
 
 
-def test_set_declick_enable():
+def test_set_declick_enable(api_server):
     """Test setting declick enable and verify it persists."""
-    node_id = find_riaa_node()
+    node_id = find_riaa_node(api_server)
     
-    response = requests.put(f"{BASE_URL}/api/module/riaa/declick", json={"enabled": True})
+    response = requests.put(f"{api_server}/api/module/riaa/declick", json={"enabled": True})
     assert response.status_code == 200
     
     result = response.json()
@@ -187,11 +235,11 @@ def test_set_declick_enable():
         "Declick Enable not set in PipeWire"
 
 
-def test_get_spike_config():
+def test_get_spike_config(api_server):
     """Test getting spike detection configuration."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/spike")
+    response = requests.get(f"{api_server}/api/module/riaa/spike")
     assert response.status_code == 200
     
     data = response.json()
@@ -201,12 +249,12 @@ def test_get_spike_config():
     assert isinstance(data["width_ms"], (int, float))
 
 
-def test_set_spike_config():
+def test_set_spike_config(api_server):
     """Test setting spike detection configuration."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
     response = requests.put(
-        f"{BASE_URL}/api/module/riaa/spike",
+        f"{api_server}/api/module/riaa/spike",
         json={"threshold_db": 25.0, "width_ms": 2.0}
     )
     assert response.status_code == 200
@@ -217,11 +265,11 @@ def test_set_spike_config():
     assert result["width_ms"] == 2.0
 
 
-def test_get_notch_config():
+def test_get_notch_config(api_server):
     """Test getting notch filter configuration."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
-    response = requests.get(f"{BASE_URL}/api/module/riaa/notch")
+    response = requests.get(f"{api_server}/api/module/riaa/notch")
     assert response.status_code == 200
     
     data = response.json()
@@ -233,12 +281,12 @@ def test_get_notch_config():
     assert isinstance(data["q_factor"], (int, float))
 
 
-def test_set_notch_config():
+def test_set_notch_config(api_server):
     """Test setting notch filter configuration."""
-    find_riaa_node()
+    find_riaa_node(api_server)
     
     response = requests.put(
-        f"{BASE_URL}/api/module/riaa/notch",
+        f"{api_server}/api/module/riaa/notch",
         json={"enabled": True, "frequency_hz": 300.0, "q_factor": 30.0}
     )
     assert response.status_code == 200

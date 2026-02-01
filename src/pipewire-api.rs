@@ -1,5 +1,5 @@
 use anyhow::Result;
-use pw_api::{PipeWireClient, AppState, NodeState};
+use pw_api::{AppState, NodeState};
 use std::sync::Arc;
 use clap::Parser;
 

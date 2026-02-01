@@ -16,8 +16,7 @@ pub mod wpctl;
 pub mod pwcli;
 pub mod pwlink;
 
-pub use pipewire_client::{PipeWireClient, NodeInfo};
-pub use parameters::{get_all_params, set_param, set_param_from_string, ParameterValue};
+pub use parameters::ParameterValue;
 pub use api_server::{AppState, NodeState};
 pub use linker::{LinkRule, LinkType, NodeIdentifier};
 pub use link_manager_cli::apply_link_rule;

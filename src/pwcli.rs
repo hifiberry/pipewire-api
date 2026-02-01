@@ -5,6 +5,26 @@
 
 use std::collections::HashMap;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+
+// Simple cache for node name <-> ID lookups to avoid repeated pw-cli calls
+static NODE_CACHE: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+
+/// Initialize or refresh the node name cache
+fn refresh_node_cache() -> Result<(), String> {
+    let nodes = list_nodes()?;
+    let mut cache = HashMap::new();
+    
+    for node in nodes {
+        if let Some(name) = node.properties.get("node.name") {
+            cache.insert(name.clone(), node.id);
+        }
+    }
+    
+    let cache_mutex = NODE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    *cache_mutex.lock().unwrap() = cache;
+    Ok(())
+}
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -155,6 +175,49 @@ pub fn list_links() -> Result<Vec<PwObject>, String> {
 pub fn get_object(id: u32) -> Result<Option<PwObject>, String> {
     let objects = list_all()?;
     Ok(objects.into_iter().find(|o| o.id == id))
+}
+
+/// Find a node by name using cache (refreshes cache on first call or if not found)
+pub fn find_node_by_name(name: &str) -> Result<Option<PwObject>, String> {
+    // Initialize cache on first use
+    if NODE_CACHE.get().is_none() {
+        refresh_node_cache()?;
+    }
+    
+    // Try to find in cache
+    let cache = NODE_CACHE.get().unwrap().lock().unwrap();
+    if let Some(&id) = cache.get(name) {
+        drop(cache); // Release lock before calling get_object
+        return get_object(id);
+    }
+    
+    // Not in cache - refresh and try again
+    drop(cache);
+    refresh_node_cache()?;
+    
+    let cache = NODE_CACHE.get().unwrap().lock().unwrap();
+    if let Some(&id) = cache.get(name) {
+        drop(cache);
+        return get_object(id);
+    }
+    
+    Ok(None)
+}
+
+/// Find a node name by ID using cache
+pub fn find_name_by_id(id: u32) -> Result<Option<String>, String> {
+    // Initialize cache on first use
+    if NODE_CACHE.get().is_none() {
+        refresh_node_cache()?;
+    }
+    
+    // Search cache for this ID
+    let cache = NODE_CACHE.get().unwrap().lock().unwrap();
+    let name = cache.iter()
+        .find(|(_, &node_id)| node_id == id)
+        .map(|(name, _)| name.clone());
+    
+    Ok(name)
 }
 
 /// Parse pw-cli ls output into objects

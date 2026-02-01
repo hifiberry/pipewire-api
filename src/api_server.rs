@@ -79,6 +79,19 @@ impl AppState {
             .cloned()
     }
 
+    /// Find a node by name from the cache
+    pub fn find_node_by_name(&self, name: &str) -> Option<PwObject> {
+        self.object_cache.read().unwrap()
+            .iter()
+            .find(|o| {
+                o.object_type.starts_with("PipeWire:Interface:Node") &&
+                o.properties.get("node.name")
+                    .map(|n| n == name)
+                    .unwrap_or(false)
+            })
+            .cloned()
+    }
+
     /// Get objects by type
     pub fn get_objects_by_type(&self, obj_type: &str) -> Vec<PwObject> {
         self.object_cache.read().unwrap()
@@ -153,21 +166,18 @@ impl NodeState {
     // Get parameters using pw-cli (with caching to avoid excessive calls)
     // EQ parameters are cached as external tools rarely modify them
     pub fn get_params(&self) -> Result<HashMap<String, ParameterValue>, ApiError> {
-        use crate::PipeWireClient;
-
         // Check cache first
         if let Some(ref cached) = *self.cache.lock().unwrap() {
             return Ok(cached.clone());
         }
 
-        // Cache miss - fetch from PipeWire
-        let client = PipeWireClient::new()
-            .map_err(|e| ApiError::Internal(format!("Failed to connect to PipeWire: {}", e)))?;
-        let (info, _node) = client.find_and_bind_node(&self.node_name, 2)
-            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?;
+        // Cache miss - fetch from PipeWire using pw-cli
+        let node = crate::pwcli::find_node_by_name(&self.node_name)
+            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+            .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?;
         
         // Use pw-cli to enumerate parameters
-        let params = Self::get_params_via_pwcli(info.id)
+        let params = Self::get_params_via_pwcli(node.id)
             .map_err(|e| ApiError::Internal(format!("Failed to get parameters: {}", e)))?;
         
         // Update cache
@@ -192,16 +202,13 @@ impl NodeState {
 
     // Helper to set multiple parameters using pw-cli (batched in single call)
     pub fn set_parameters(&self, params: HashMap<String, ParameterValue>) -> Result<(), ApiError> {
-        use crate::PipeWireClient;
-
-        // Find the node ID
-        let client = PipeWireClient::new()
-            .map_err(|e| ApiError::Internal(format!("Failed to connect to PipeWire: {}", e)))?;
-        let (info, _node) = client.find_and_bind_node(&self.node_name, 2)
-            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?;
+        // Find the node ID using pwcli cache
+        let node = crate::pwcli::find_node_by_name(&self.node_name)
+            .map_err(|e| ApiError::Internal(format!("Failed to find node: {}", e)))?
+            .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", self.node_name)))?;
         
         // Build the JSON for pw-cli set-param
-        Self::set_params_via_pwcli(info.id, params)
+        Self::set_params_via_pwcli(node.id, params)
             .map_err(|e| ApiError::Internal(format!("Failed to set parameters: {}", e)))?;
         
         // Invalidate cache
