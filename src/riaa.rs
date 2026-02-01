@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    routing::{get, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -342,6 +342,25 @@ pub async fn set_default(State(state): State<Arc<NodeState>>) -> Result<Json<ser
     })))
 }
 
+/// Save current RIAA settings using the plugin's built-in store feature
+/// This sets the "Store settings" control port to 1, which triggers the plugin
+/// to save current parameters to ~/.config/ladspa/riaa.ini
+pub async fn save_config(State(state): State<Arc<NodeState>>) -> Result<Json<serde_json::Value>, ApiError> {
+    use std::collections::HashMap;
+    
+    // Set "Store settings" to 1 to trigger the plugin to save
+    let mut params = HashMap::new();
+    params.insert("riaa:Store settings".to_string(), ParameterValue::Int(1));
+    
+    state.set_parameters(params)?;
+    
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "RIAA settings saved to ~/.config/ladspa/riaa.ini",
+        "note": "Settings will be loaded automatically when the plugin starts"
+    })))
+}
+
 // Create router for RIAA endpoints
 pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
@@ -353,5 +372,6 @@ pub fn create_router(state: Arc<NodeState>) -> Router {
         .route("/api/v1/module/riaa/spike", get(get_spike_config).put(set_spike_config))
         .route("/api/v1/module/riaa/notch", get(get_notch_config).put(set_notch_config))
         .route("/api/v1/module/riaa/set-default", put(set_default))
+        .route("/api/v1/module/riaa/save", post(save_config))
         .with_state(state)
 }
