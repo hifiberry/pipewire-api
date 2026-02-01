@@ -11,6 +11,7 @@ pub mod link_scheduler;
 pub mod config;
 pub mod pod_parser;
 pub mod volume;
+pub mod wpctl;
 
 pub use pipewire_client::{PipeWireClient, NodeInfo};
 pub use parameters::{get_all_params, set_param, set_param_from_string, ParameterValue};
