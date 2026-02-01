@@ -3,6 +3,7 @@ pub mod parameters;
 pub mod api_server;
 pub mod api;
 pub mod speakereq;
+pub mod riaa;
 pub mod linker;
 pub mod links;
 pub mod default_link_rules;

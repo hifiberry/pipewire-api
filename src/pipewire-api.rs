@@ -87,9 +87,13 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Create router with api and speakereq endpoints
+    // Create router with api, speakereq, and riaa endpoints
+    // Note: speakereq and riaa need separate AppState instances since they target different nodes
+    let riaa_state = Arc::new(pw_api::api_server::AppState::new("riaa".to_string()));
+    
     let app = pw_api::api::create_router(state.clone())
-        .merge(pw_api::speakereq::create_router(state));
+        .merge(pw_api::speakereq::create_router(state))
+        .merge(pw_api::riaa::create_router(riaa_state));
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
