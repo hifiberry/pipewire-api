@@ -4,13 +4,11 @@
 //! - `types`: Common data structures
 //! - `listing`: List PipeWire objects
 //! - `properties`: Object properties
-//! - `devices`: Device-specific handlers
 //! - `volume`: Unified volume control (via wpctl)
 
 pub mod types;
 pub mod listing;
 pub mod properties;
-pub mod devices;
 pub mod volume;
 
 use axum::{
@@ -42,11 +40,6 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Properties endpoints
         .route("/api/v1/properties", get(properties::list_all_properties))
         .route("/api/v1/properties/:id", get(properties::get_object_properties))
-        // Device endpoints
-        .route("/api/v1/devices", get(devices::list_devices_with_info))
-        .route("/api/v1/devices/:id", get(devices::get_device_info))
-        .route("/api/v1/devices/:id/volume", get(devices::get_device_volume))
-        .route("/api/v1/devices/:id/volume", put(devices::set_device_volume))
         // Unified volume endpoints (via wpctl)
         .route("/api/v1/volume", get(volume::list_all_volumes))
         .route("/api/v1/volume/:id", get(volume::get_volume_by_id))

@@ -13,6 +13,7 @@ pub mod pod_parser;
 pub mod volume;
 pub mod wpctl;
 pub mod pwcli;
+pub mod pwlink;
 
 pub use pipewire_client::{PipeWireClient, NodeInfo};
 pub use parameters::{get_all_params, set_param, set_param_from_string, ParameterValue};
