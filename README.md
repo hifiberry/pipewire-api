@@ -128,12 +128,22 @@ The API server provides several categories of endpoints:
 - `/api/v1/properties/:id` - Get properties for a specific object
 
 ### SpeakerEQ Control
-- `/api/v1/speakereq/structure` - Get DSP structure
-- `/api/v1/speakereq/io` - Get I/O configuration
-- `/api/v1/speakereq/status` - Get current status
-- `/api/v1/speakereq/eq` - Manage equalizer settings
-- `/api/v1/speakereq/gain` - Control gain settings
-- `/api/v1/speakereq/enable` - Enable/disable processing
+- `/api/module/speakereq/structure` - Get DSP structure
+- `/api/module/speakereq/io` - Get I/O configuration
+- `/api/module/speakereq/status` - Get current status
+- `/api/module/speakereq/eq` - Manage equalizer settings
+- `/api/module/speakereq/gain` - Control gain settings
+- `/api/module/speakereq/enable` - Enable/disable processing
+
+### RIAA Phono Preamplifier Control
+- `/api/module/riaa/config` - Get all RIAA settings
+- `/api/module/riaa/gain` - Get/set preamplifier gain
+- `/api/module/riaa/subsonic` - Get/set subsonic (rumble) filter
+- `/api/module/riaa/riaa-enable` - Enable/disable RIAA equalization
+- `/api/module/riaa/declick` - Enable/disable declicker
+- `/api/module/riaa/spike` - Configure spike detection
+- `/api/module/riaa/notch` - Configure notch filter
+- `/api/module/riaa/set-default` - Reset to defaults
 
 ### Link Management (Experimental)
 - `/api/v1/links` - List all active links
