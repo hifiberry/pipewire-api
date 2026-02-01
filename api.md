@@ -37,15 +37,43 @@ Returns all PipeWire objects (nodes, devices, ports, links, clients, modules, fa
 }
 ```
 
-**Note:** Filter results by checking the `type` field in the response. Available types include: `node`, `device`, `port`, `link`, `client`, `module`, `factory`.
-
-#### List Links
-```
-GET /ls/links
-```
-```
-
 **Note:** Filter results client-side by checking the `type` field in the response. Available types include: `node`, `device`, `port`, `link`, `client`, `module`, `factory`.
+
+#### Get Object by ID
+```
+GET /objects/:id
+```
+Returns a single object by its ID.
+
+**Parameters:**
+- `id` (path): Object ID
+
+**Response:**
+```json
+{
+  "id": 45,
+  "name": "speakereq2x2",
+  "type": "node"
+}
+```
+
+**Error Response:**
+- `404 Not Found` if object doesn't exist
+
+#### Refresh Object Cache
+```
+POST /cache/refresh
+```
+Forces a refresh of the internal PipeWire object cache. The cache is automatically updated on startup and can be refreshed manually using this endpoint.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "Cache refreshed",
+  "object_count": 127
+}
+```
 
 #### Get All Properties
 ```
@@ -94,32 +122,9 @@ Returns properties for a specific object.
 }
 ```
 
-### Device Management Endpoints
-
-#### List All Devices
-```
-GET /api/v1/devices
-```
-Returns all PipeWire devices with their basic information and properties.
-
-**Response:**
-```json
-[
-  {
-    "id": 56,
-    "name": "alsa_card.pci-0000_00_1f.3",
-    "properties": {
-      "device.name": "alsa_card.pci-0000_00_1f.3",
-      "device.description": "Built-in Audio",
-      "api.alsa.card": "0"
-    }
-  }
-]
-```
-
 ### Volume Management Endpoints
 
-The volume API provides unified volume control for both hardware devices and software sinks (audio outputs). The API automatically detects the object type and uses the appropriate PipeWire parameters.
+The volume API provides unified volume control for both hardware devices and software sinks (audio outputs). The API automatically detects the object type and uses the appropriate PipeWire parameters via wpctl.
 
 #### List All Volumes
 ```
@@ -246,192 +251,166 @@ Saves the current volume of a specific device or sink to the state file.
 
 ### Link Management Endpoints
 
+Link management uses pw-link for creating and managing PipeWire audio connections. Links can be identified by port IDs or port names.
+
 #### List Active Links
 ```
 GET /links
 ```
-Returns all active PipeWire links with detailed connection information.
+Returns all active PipeWire links with port information.
 
 **Response:**
 ```json
-[
-  {
-    "id": 101,
-    "output_node_id": 45,
-    "output_port_id": 67,
-    "input_node_id": 89,
-    "input_port_id": 90,
-    "output_node_name": "speakereq2x2",
-    "input_node_name": "HiFiBerry DAC"
-  }
-]
+{
+  "links": [
+    {
+      "id": 101,
+      "output_port_id": 67,
+      "output_port_name": "speakereq2x2:output_FL",
+      "input_port_id": 89,
+      "input_port_name": "alsa_output.platform-soc_audio.stereo-fallback:playback_FL"
+    }
+  ]
+}
 ```
 
-#### Apply Link Rule
+#### Create Link
 ```
-POST /links/apply
+POST /links
 ```
-Apply a single link rule to create connections between nodes.
+Create a link between two ports. Ports can be specified by ID or name (format: "node_name:port_name").
 
 **Request Body:**
 ```json
 {
-  "name": "My Link",
-  "source": {
-    "node.name": "^source_node$"
-  },
-  "destination": {
-    "node.name": "^dest_node$"
-  },
-  "type": "link",
-  "link_at_startup": true,
-  "relink_every": 0
+  "output": "speakereq2x2:output_FL",
+  "input": "alsa_output.platform-soc_audio.stereo-fallback:playback_FL"
+}
+```
+
+Or using port IDs:
+```json
+{
+  "output": "67",
+  "input": "89"
 }
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Created link from output_port to input_port"
+  "status": "ok",
+  "message": "Link created: speakereq2x2:output_FL -> alsa_output.platform-soc_audio.stereo-fallback:playback_FL",
+  "link_id": 101
 }
 ```
 
-#### Apply Batch Rules
+#### Remove Link by ID
 ```
-POST /links/batch
+DELETE /links/:id
 ```
-Apply multiple link rules at once.
+Remove a link by its link ID.
+
+**Parameters:**
+- `id` (path): Link ID
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "Link 101 removed",
+  "link_id": 101
+}
+```
+
+#### Remove Link by Name
+```
+DELETE /links/by-name
+```
+Remove a link by specifying the output and input ports.
 
 **Request Body:**
 ```json
 {
-  "rules": [
+  "output": "speakereq2x2:output_FL",
+  "input": "alsa_output.platform-soc_audio.stereo-fallback:playback_FL"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "Link removed: speakereq2x2:output_FL -> alsa_output.platform-soc_audio.stereo-fallback:playback_FL"
+}
+```
+
+#### Check if Link Exists
+```
+GET /links/exists?output=...&input=...
+```
+Check if a link exists between two ports.
+
+**Query Parameters:**
+- `output`: Output port name or ID
+- `input`: Input port name or ID
+
+**Response:**
+```json
+{
+  "exists": true,
+  "link_id": 101
+}
+```
+
+Or if not exists:
+```json
+{
+  "exists": false
+}
+```
+
+#### List Output Ports
+```
+GET /links/ports/output
+```
+Returns all available output (playback) ports.
+
+**Response:**
+```json
+{
+  "ports": [
     {
-      "name": "Link 1",
-      "source": {...},
-      "destination": {...},
-      "type": "link"
-    },
-    {
-      "name": "Link 2",
-      "source": {...},
-      "destination": {...},
-      "type": "link"
+      "id": 67,
+      "name": "speakereq2x2:output_FL",
+      "node_name": "speakereq2x2",
+      "port_name": "output_FL"
     }
   ]
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Applied 2 rule(s)",
-  "details": {
-    "results": [
-      {"success": true, "message": "Rule applied"},
-      {"success": true, "message": "Rule applied"}
-    ]
-  }
-}
+#### List Input Ports
 ```
-
-#### Get Default Link Rules
+GET /links/ports/input
 ```
-GET /links/default
-```
-Returns the default link rules configured in the server.
+Returns all available input (capture) ports.
 
 **Response:**
 ```json
 {
-  "rules": [
+  "ports": [
     {
-      "name": "SpeakerEQ to HiFiBerry",
-      "source": {
-        "node.name": "^speakereq2x2\\.output$"
-      },
-      "destination": {
-        "object.path": "alsa:.*:sndrpihifiberry:.*:playback"
-      },
-      "type": "link",
-      "link_at_startup": true,
-      "relink_every": 10
+      "id": 89,
+      "name": "alsa_output.platform-soc_audio.stereo-fallback:playback_FL",
+      "node_name": "alsa_output.platform-soc_audio.stereo-fallback",
+      "port_name": "playback_FL"
     }
   ]
 }
 ```
 
-#### Apply Default Link Rules
-```
-POST /links/apply-defaults
-```
-Apply all default link rules configured in the server.
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Applied 1 default rule(s)",
-  "details": {
-    "applied": 1,
-    "results": [
-      {"success": true, "message": "Created 2 links"}
-    ]
-  }
-}
-```
-
-#### Get Link Rules Status
-```
-GET /links/status
-```
-Returns the status of all configured link rules, including when they last ran and what they did.
-
-**Response:**
-```json
-{
-  "rules": [
-    {
-      "index": 0,
-      "rule": {
-        "name": "SpeakerEQ to HiFiBerry",
-        "source": {
-          "node.name": "^speakereq.x.\\.output$",
-          "node.nick": null,
-          "object.path": null
-        },
-        "destination": {
-          "node.name": null,
-          "node.nick": null,
-          "object.path": "alsa.*sndrpihifiberry.*playback"
-        },
-        "type": "link",
-        "link_at_startup": true,
-        "relink_every": 5
-      },
-      "status": {
-        "last_run": "2026-01-31T14:32:15.123456Z",
-        "last_run_timestamp": 1738330335,
-        "links_created": 2,
-        "links_failed": 0,
-        "last_error": null,
-        "total_runs": 42
-      }
-    }
-  ]
-}
-```
-
-Status fields:
-- `last_run`: ISO 8601 timestamp of the last execution (null if never run)
-- `last_run_timestamp`: Unix timestamp of the last execution (null if never run)
-- `links_created`: Number of links successfully created on the last run
-- `links_failed`: Number of links that failed on the last run
-- `last_error`: Last error message, if any (null if no error)
-- `total_runs`: Total number of times this rule has been executed
-
+---
 
 ### SpeakerEQ Endpoints
 
