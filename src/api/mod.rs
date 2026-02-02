@@ -24,6 +24,21 @@ use crate::api_server::AppState;
 // Re-export types for convenience
 pub use types::*;
 
+/// Version information response
+#[derive(Debug, Serialize)]
+pub struct VersionResponse {
+    pub version: &'static str,
+    pub api_version: &'static str,
+}
+
+/// Handler for GET /api/v1/version - returns package and API version
+pub async fn get_version() -> Json<VersionResponse> {
+    Json(VersionResponse {
+        version: env!("CARGO_PKG_VERSION"),
+        api_version: "1.0",
+    })
+}
+
 /// Response for /api/v1 endpoint listing all available endpoints
 #[derive(Debug, Serialize)]
 pub struct EndpointListResponse {
@@ -48,6 +63,11 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 path: "/api/v1",
                 methods: vec!["GET"],
                 description: "List all available API endpoints",
+            },
+            EndpointInfo {
+                path: "/api/v1/version",
+                methods: vec!["GET"],
+                description: "Get API and package version information",
             },
             EndpointInfo {
                 path: "/api/v1/ls",
@@ -253,6 +273,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         // API root - list all endpoints
         .route("/api/v1", get(list_endpoints))
+        // Version endpoint
+        .route("/api/v1/version", get(get_version))
         // Listing endpoints
         .route("/api/v1/ls", get(listing::list_all))
         // Object by ID endpoint

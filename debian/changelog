@@ -1,3 +1,16 @@
+pipewire-api (2.0.3-1) stable; urgency=medium
+
+  * Added /api/v1/version endpoint returning package and API version
+  * Version consistency improvements:
+    - Updated Cargo.toml and VERSION file to match debian package version
+    - Added build-time version consistency check to prevent mismatches
+  * Build script enhancements:
+    - Added check_version_consistency() function
+    - Validates Cargo.toml, VERSION file, and debian/changelog match
+    - Build fails early if versions are inconsistent
+
+ -- HiFiBerry <info@hifiberry.com>  Sun, 02 Feb 2026 13:40:00 +0100
+
 pipewire-api (2.0.2-1) stable; urgency=medium
 
   * Graph improvements:
