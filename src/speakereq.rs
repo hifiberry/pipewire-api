@@ -150,6 +150,24 @@ pub struct StatusResponse {
     pub outputs: Vec<BlockStatus>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CrossbarMatrixResponse {
+    pub matrix: Vec<Vec<f32>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CrossbarValueRequest {
+    pub value: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CrossbarValueResponse {
+    pub success: bool,
+    pub input: usize,
+    pub output: usize,
+    pub value: f32,
+}
+
 // EQ type mapping
 fn eq_type_to_string(type_id: i32) -> String {
     match type_id {
@@ -668,6 +686,87 @@ pub async fn get_status(State(state): State<Arc<NodeState>>) -> Result<Json<Stat
     }))
 }
 
+/// Get crossbar matrix in 2D array format
+pub async fn get_crossbar(
+    State(state): State<Arc<NodeState>>,
+) -> Result<Json<CrossbarMatrixResponse>, ApiError> {
+    let params = state.get_params()?;
+    let prefix = get_plugin_prefix(&params);
+    
+    // Read all crossbar values
+    let xbar_0_to_0 = params.get(&pkey(&prefix, "xbar_0_to_0"))
+        .and_then(|v| match v {
+            ParameterValue::Float(f) => Some(*f),
+            ParameterValue::Int(i) => Some(*i as f32),
+            _ => None,
+        })
+        .unwrap_or(1.0);
+    
+    let xbar_0_to_1 = params.get(&pkey(&prefix, "xbar_0_to_1"))
+        .and_then(|v| match v {
+            ParameterValue::Float(f) => Some(*f),
+            ParameterValue::Int(i) => Some(*i as f32),
+            _ => None,
+        })
+        .unwrap_or(0.0);
+    
+    let xbar_1_to_0 = params.get(&pkey(&prefix, "xbar_1_to_0"))
+        .and_then(|v| match v {
+            ParameterValue::Float(f) => Some(*f),
+            ParameterValue::Int(i) => Some(*i as f32),
+            _ => None,
+        })
+        .unwrap_or(0.0);
+    
+    let xbar_1_to_1 = params.get(&pkey(&prefix, "xbar_1_to_1"))
+        .and_then(|v| match v {
+            ParameterValue::Float(f) => Some(*f),
+            ParameterValue::Int(i) => Some(*i as f32),
+            _ => None,
+        })
+        .unwrap_or(1.0);
+    
+    // Format as 2D matrix: matrix[input][output]
+    let matrix = vec![
+        vec![xbar_0_to_0, xbar_0_to_1],
+        vec![xbar_1_to_0, xbar_1_to_1],
+    ];
+    
+    Ok(Json(CrossbarMatrixResponse { matrix }))
+}
+
+/// Set a single crossbar routing value
+pub async fn set_crossbar_value(
+    State(state): State<Arc<NodeState>>,
+    Path((input, output)): Path<(usize, usize)>,
+    Json(request): Json<CrossbarValueRequest>,
+) -> Result<Json<CrossbarValueResponse>, ApiError> {
+    // Validate indices
+    if input > 1 || output > 1 {
+        return Err(ApiError::BadRequest(
+            "Input and output must be 0 or 1 for 2x2 crossbar".to_string()
+        ));
+    }
+    
+    // Validate value range
+    if request.value < 0.0 || request.value > 2.0 {
+        return Err(ApiError::BadRequest(
+            "Crossbar value must be between 0.0 and 2.0".to_string()
+        ));
+    }
+    
+    // Set the parameter
+    let param_name = format!("xbar_{}_to_{}", input, output);
+    state.set_parameter(&param_name, ParameterValue::Float(request.value))?;
+    
+    Ok(Json(CrossbarValueResponse {
+        success: true,
+        input,
+        output,
+        value: request.value,
+    }))
+}
+
 // Create router for speakereq endpoints
 pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
@@ -680,6 +779,8 @@ pub fn create_router(state: Arc<NodeState>) -> Router {
         .route("/api/v1/module/speakereq/eq/:block/clear", put(clear_eq_bank))
         .route("/api/v1/module/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
         .route("/api/v1/module/speakereq/enable", get(get_enable).put(set_enable))
+        .route("/api/v1/module/speakereq/crossbar", get(get_crossbar))
+        .route("/api/v1/module/speakereq/crossbar/:input/:output", put(set_crossbar_value))
         .route("/api/v1/module/speakereq/refresh", post(refresh_cache))
         .route("/api/v1/module/speakereq/default", post(set_default))
         .route("/api/v1/module/speakereq/save", post(save_config))
