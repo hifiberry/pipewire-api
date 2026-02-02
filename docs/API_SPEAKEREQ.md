@@ -362,6 +362,41 @@ Get the routing matrix values.
 }
 ```
 
+### Set Entire Crossbar Matrix
+
+```
+PUT /api/v1/module/speakereq/crossbar
+```
+
+Set all crossbar routing values in a single request.
+
+**Request Body:**
+```json
+{
+  "matrix": [
+    [0.8, 0.2],
+    [0.3, 0.7]
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "matrix": [
+    [0.8, 0.2],
+    [0.3, 0.7]
+  ]
+}
+```
+
+**Notes:**
+- Matrix must be exactly 2x2 (2 inputs × 2 outputs)
+- All values must be between 0.0 and 2.0
+- More efficient than setting individual values
+- All values updated atomically
+
 ### Set Crossbar Value
 
 ```

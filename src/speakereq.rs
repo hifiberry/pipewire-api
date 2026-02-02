@@ -168,6 +168,17 @@ pub struct CrossbarValueResponse {
     pub value: f32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetCrossbarMatrixRequest {
+    pub matrix: Vec<Vec<f32>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetCrossbarMatrixResponse {
+    pub success: bool,
+    pub matrix: Vec<Vec<f32>>,
+}
+
 // EQ type mapping
 fn eq_type_to_string(type_id: i32) -> String {
     match type_id {
@@ -767,6 +778,50 @@ pub async fn set_crossbar_value(
     }))
 }
 
+/// Set the entire crossbar matrix in one request
+pub async fn set_crossbar_matrix(
+    State(state): State<Arc<NodeState>>,
+    Json(request): Json<SetCrossbarMatrixRequest>,
+) -> Result<Json<SetCrossbarMatrixResponse>, ApiError> {
+    // Validate matrix dimensions (must be 2x2)
+    if request.matrix.len() != 2 {
+        return Err(ApiError::BadRequest(
+            "Crossbar matrix must have exactly 2 input rows".to_string()
+        ));
+    }
+    
+    for (i, row) in request.matrix.iter().enumerate() {
+        if row.len() != 2 {
+            return Err(ApiError::BadRequest(
+                format!("Crossbar matrix row {} must have exactly 2 output columns", i)
+            ));
+        }
+        
+        // Validate value ranges
+        for (j, &value) in row.iter().enumerate() {
+            if value < 0.0 || value > 2.0 {
+                return Err(ApiError::BadRequest(
+                    format!("Crossbar value at [{},{}] = {} is out of range (0.0-2.0)", i, j, value)
+                ));
+            }
+        }
+    }
+    
+    // Set all crossbar parameters in one batch
+    let mut params = std::collections::HashMap::new();
+    params.insert("xbar_0_to_0".to_string(), ParameterValue::Float(request.matrix[0][0]));
+    params.insert("xbar_0_to_1".to_string(), ParameterValue::Float(request.matrix[0][1]));
+    params.insert("xbar_1_to_0".to_string(), ParameterValue::Float(request.matrix[1][0]));
+    params.insert("xbar_1_to_1".to_string(), ParameterValue::Float(request.matrix[1][1]));
+    
+    state.set_parameters(params)?;
+    
+    Ok(Json(SetCrossbarMatrixResponse {
+        success: true,
+        matrix: request.matrix,
+    }))
+}
+
 // Create router for speakereq endpoints
 pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
@@ -779,7 +834,7 @@ pub fn create_router(state: Arc<NodeState>) -> Router {
         .route("/api/v1/module/speakereq/eq/:block/clear", put(clear_eq_bank))
         .route("/api/v1/module/speakereq/gain/master", get(get_master_gain).put(set_master_gain))
         .route("/api/v1/module/speakereq/enable", get(get_enable).put(set_enable))
-        .route("/api/v1/module/speakereq/crossbar", get(get_crossbar))
+        .route("/api/v1/module/speakereq/crossbar", get(get_crossbar).put(set_crossbar_matrix))
         .route("/api/v1/module/speakereq/crossbar/:input/:output", put(set_crossbar_value))
         .route("/api/v1/module/speakereq/refresh", post(refresh_cache))
         .route("/api/v1/module/speakereq/default", post(set_default))

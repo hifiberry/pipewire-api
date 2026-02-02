@@ -84,6 +84,8 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 | `/api/v1/module/speakereq/eq/:block/clear` | PUT | Clear all EQ in block |
 | `/api/v1/module/speakereq/gain/master` | GET, PUT | Get/set master gain |
 | `/api/v1/module/speakereq/enable` | GET, PUT | Get/set enable status |
+| `/api/v1/module/speakereq/crossbar` | GET, PUT | Get/set crossbar matrix |
+| `/api/v1/module/speakereq/crossbar/:input/:output` | PUT | Set single crossbar value |
 | `/api/v1/module/speakereq/refresh` | POST | Refresh parameter cache |
 | `/api/v1/module/speakereq/default` | POST | Reset to defaults |
 

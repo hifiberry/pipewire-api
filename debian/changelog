@@ -1,3 +1,13 @@
+pipewire-api (2.0.5-1) stable; urgency=medium
+
+  * Added PUT /api/v1/module/speakereq/crossbar endpoint for bulk matrix updates
+    - Set entire crossbar matrix in a single request
+    - Validates matrix dimensions (2x2) and value ranges (0.0-2.0)
+    - More efficient than multiple individual value updates
+    - Request: {"matrix": [[1.0, 0.0], [0.0, 1.0]]}
+
+ -- HiFiBerry <info@hifiberry.com>  Sun, 02 Feb 2026 14:30:00 +0100
+
 pipewire-api (2.0.4-1) stable; urgency=medium
 
   * Added dedicated crossbar/mixing matrix endpoints:

@@ -1,6 +1,6 @@
 [package]
 name = "pw-api"
-version = "2.0.4"
+version = "2.0.5"
 edition = "2021"
 authors = ["HiFiBerry <info@hifiberry.com>"]
 license = "MIT"
