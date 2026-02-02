@@ -794,6 +794,181 @@ def test_set_default(speakereq_server):
     assert status["crossbar"]["input_1_to_output_1"] == 1.0, "Crossbar [1,1] not 1.0"
 
 
+def test_get_crossbar_matrix(speakereq_server):
+    """Test getting crossbar matrix in 2D array format."""
+    response = requests.get(f"{speakereq_server}/api/v1/module/speakereq/crossbar")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "matrix" in data
+    matrix = data["matrix"]
+    
+    # Verify it's a 2x2 matrix
+    assert len(matrix) == 2, "Matrix should have 2 rows (inputs)"
+    assert len(matrix[0]) == 2, "Matrix row 0 should have 2 columns (outputs)"
+    assert len(matrix[1]) == 2, "Matrix row 1 should have 2 columns (outputs)"
+    
+    # All values should be floats
+    for i in range(2):
+        for j in range(2):
+            assert isinstance(matrix[i][j], (int, float)), f"Matrix[{i}][{j}] should be numeric"
+
+
+def test_set_crossbar_single_value(speakereq_server):
+    """Test setting a single crossbar value."""
+    # First reset to identity
+    requests.post(f"{speakereq_server}/api/v1/module/speakereq/default")
+    time.sleep(0.1)
+    
+    # Set crossbar[0][1] to 0.5
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar/0/1",
+        json={"value": 0.5}
+    )
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["success"] is True
+    assert data["input"] == 0
+    assert data["output"] == 1
+    assert data["value"] == 0.5
+    
+    # Verify the change
+    response = requests.get(f"{speakereq_server}/api/v1/module/speakereq/crossbar")
+    matrix = response.json()["matrix"]
+    assert matrix[0][1] == 0.5, "Crossbar[0][1] should be 0.5"
+    assert matrix[0][0] == 1.0, "Crossbar[0][0] should remain 1.0"
+    
+    # Reset to identity
+    requests.post(f"{speakereq_server}/api/v1/module/speakereq/default")
+
+
+def test_set_crossbar_single_value_validation(speakereq_server):
+    """Test validation for single crossbar value updates."""
+    # Test out of range value (> 2.0)
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar/0/0",
+        json={"value": 2.5}
+    )
+    assert response.status_code == 400
+    assert "out of range" in response.json()["error"].lower() or "0.0 and 2.0" in response.json()["error"]
+    
+    # Test negative value
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar/0/0",
+        json={"value": -0.5}
+    )
+    assert response.status_code == 400
+    
+    # Test invalid input index
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar/2/0",
+        json={"value": 1.0}
+    )
+    assert response.status_code == 400
+    
+    # Test invalid output index
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar/0/5",
+        json={"value": 1.0}
+    )
+    assert response.status_code == 400
+
+
+def test_set_crossbar_bulk_matrix(speakereq_server):
+    """Test setting entire crossbar matrix in one request."""
+    # First reset to identity
+    requests.post(f"{speakereq_server}/api/v1/module/speakereq/default")
+    time.sleep(0.1)
+    
+    # Set a custom matrix
+    test_matrix = [
+        [0.8, 0.2],
+        [0.3, 0.7]
+    ]
+    
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": test_matrix}
+    )
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["success"] is True
+    assert data["matrix"] == test_matrix
+    
+    # Verify the change persisted
+    time.sleep(0.1)
+    response = requests.get(f"{speakereq_server}/api/v1/module/speakereq/crossbar")
+    matrix = response.json()["matrix"]
+    
+    assert matrix[0][0] == 0.8, "Crossbar[0][0] should be 0.8"
+    assert matrix[0][1] == 0.2, "Crossbar[0][1] should be 0.2"
+    assert matrix[1][0] == 0.3, "Crossbar[1][0] should be 0.3"
+    assert matrix[1][1] == 0.7, "Crossbar[1][1] should be 0.7"
+    
+    # Reset to identity
+    requests.post(f"{speakereq_server}/api/v1/module/speakereq/default")
+
+
+def test_set_crossbar_bulk_validation(speakereq_server):
+    """Test validation for bulk crossbar matrix updates."""
+    # Test wrong matrix dimensions - too many rows
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[1.0, 0.0], [0.0, 1.0], [0.5, 0.5]]}
+    )
+    assert response.status_code == 400
+    assert "2 input rows" in response.json()["error"] or "exactly 2" in response.json()["error"]
+    
+    # Test wrong matrix dimensions - wrong number of columns
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]}
+    )
+    assert response.status_code == 400
+    assert "2 output columns" in response.json()["error"] or "exactly 2" in response.json()["error"]
+    
+    # Test out of range value in matrix
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[1.0, 2.5], [0.0, 1.0]]}
+    )
+    assert response.status_code == 400
+    assert "out of range" in response.json()["error"].lower() or "0.0-2.0" in response.json()["error"]
+    
+    # Test negative value in matrix
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[1.0, 0.0], [-0.5, 1.0]]}
+    )
+    assert response.status_code == 400
+
+
+def test_crossbar_edge_cases(speakereq_server):
+    """Test crossbar edge cases with valid boundary values."""
+    # Test all zeros (valid)
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[0.0, 0.0], [0.0, 0.0]]}
+    )
+    assert response.status_code == 200
+    
+    # Test all maximum values (2.0)
+    response = requests.put(
+        f"{speakereq_server}/api/v1/module/speakereq/crossbar",
+        json={"matrix": [[2.0, 2.0], [2.0, 2.0]]}
+    )
+    assert response.status_code == 200
+    
+    # Verify
+    matrix = requests.get(f"{speakereq_server}/api/v1/module/speakereq/crossbar").json()["matrix"]
+    assert all(matrix[i][j] == 2.0 for i in range(2) for j in range(2))
+    
+    # Reset to identity
+    requests.post(f"{speakereq_server}/api/v1/module/speakereq/default")
+
+
 def test_save(speakereq_server):
     """Test that the save endpoint returns a successful response."""
     response = requests.post(f"{speakereq_server}/api/v1/module/speakereq/save")
