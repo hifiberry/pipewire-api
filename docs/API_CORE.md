@@ -9,6 +9,33 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 
 ---
 
+## Get Version Information
+
+```
+GET /api/v1/version
+```
+
+Returns the package version and API version.
+
+**Response:**
+```json
+{
+  "version": "2.0.3",
+  "api_version": "1.0"
+}
+```
+
+**Fields:**
+- `version`: Package version from Cargo.toml (semantic versioning)
+- `api_version`: API compatibility version
+
+**Use Case:**
+- Version checking for API compatibility
+- Debugging and support (identifying deployed version)
+- Automated testing and CI/CD pipelines
+
+---
+
 ## List All API Endpoints
 
 ```

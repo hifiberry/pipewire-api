@@ -41,6 +41,7 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
 | `/api/v1` | GET | List all API endpoints |
+| `/api/v1/version` | GET | Get API and package version |
 | `/api/v1/ls` | GET | List all PipeWire objects |
 | `/api/v1/objects/:id` | GET | Get object by ID |
 | `/api/v1/cache/refresh` | POST | Refresh object cache |
