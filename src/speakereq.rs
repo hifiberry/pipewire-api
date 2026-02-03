@@ -829,6 +829,7 @@ pub fn create_router(state: Arc<NodeState>) -> Router {
         .route("/api/v1/module/speakereq/config", get(get_config))
         .route("/api/v1/module/speakereq/io", get(get_io))
         .route("/api/v1/module/speakereq/status", get(get_status))
+        .route("/api/v1/module/speakereq/capabilities", get(get_capabilities))
         .route("/api/v1/module/speakereq/eq/:block/:band", get(get_eq_band).put(set_eq_band))
         .route("/api/v1/module/speakereq/eq/:block/:band/enabled", put(set_eq_band_enabled))
         .route("/api/v1/module/speakereq/eq/:block/clear", put(clear_eq_bank))
@@ -943,4 +944,131 @@ pub async fn save_config(
         "status": "ok",
         "message": "SpeakerEQ settings saved"
     })))
+}
+
+/// Response for capabilities endpoint
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CapabilitiesResponse {
+    pub eq_types: Vec<EqTypeInfo>,
+    pub parameter_ranges: ParameterRanges,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EqTypeInfo {
+    pub name: String,
+    pub description: String,
+    pub requires_gain: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParameterRanges {
+    pub frequency: RangeInfo,
+    pub gain: RangeInfo,
+    pub q: RangeInfo,
+    pub crossbar: RangeInfo,
+    pub master_gain: RangeInfo,
+    pub delay: RangeInfo,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RangeInfo {
+    pub min: f32,
+    pub max: f32,
+    pub unit: String,
+    pub description: String,
+}
+
+/// Get information about supported filter types and parameter ranges
+pub async fn get_capabilities() -> Result<Json<CapabilitiesResponse>, ApiError> {
+    let eq_types = vec![
+        EqTypeInfo {
+            name: "off".to_string(),
+            description: "Disabled - no filtering".to_string(),
+            requires_gain: false,
+        },
+        EqTypeInfo {
+            name: "low_shelf".to_string(),
+            description: "Low shelf filter - boosts/cuts low frequencies".to_string(),
+            requires_gain: true,
+        },
+        EqTypeInfo {
+            name: "high_shelf".to_string(),
+            description: "High shelf filter - boosts/cuts high frequencies".to_string(),
+            requires_gain: true,
+        },
+        EqTypeInfo {
+            name: "peaking".to_string(),
+            description: "Peaking filter - boosts/cuts around center frequency".to_string(),
+            requires_gain: true,
+        },
+        EqTypeInfo {
+            name: "low_pass".to_string(),
+            description: "Low pass filter - passes frequencies below cutoff".to_string(),
+            requires_gain: false,
+        },
+        EqTypeInfo {
+            name: "high_pass".to_string(),
+            description: "High pass filter - passes frequencies above cutoff".to_string(),
+            requires_gain: false,
+        },
+        EqTypeInfo {
+            name: "band_pass".to_string(),
+            description: "Band pass filter - passes frequencies around center".to_string(),
+            requires_gain: false,
+        },
+        EqTypeInfo {
+            name: "notch".to_string(),
+            description: "Notch filter - attenuates frequencies around center".to_string(),
+            requires_gain: false,
+        },
+        EqTypeInfo {
+            name: "all_pass".to_string(),
+            description: "All pass filter - affects phase only".to_string(),
+            requires_gain: false,
+        },
+    ];
+
+    let parameter_ranges = ParameterRanges {
+        frequency: RangeInfo {
+            min: 20.0,
+            max: 20000.0,
+            unit: "Hz".to_string(),
+            description: "Center/cutoff frequency for filters".to_string(),
+        },
+        gain: RangeInfo {
+            min: -24.0,
+            max: 24.0,
+            unit: "dB".to_string(),
+            description: "Gain adjustment for shelf/peaking filters".to_string(),
+        },
+        q: RangeInfo {
+            min: 0.1,
+            max: 10.0,
+            unit: "Q factor".to_string(),
+            description: "Filter quality factor (bandwidth control)".to_string(),
+        },
+        crossbar: RangeInfo {
+            min: 0.0,
+            max: 2.0,
+            unit: "linear gain".to_string(),
+            description: "Crossbar routing matrix values".to_string(),
+        },
+        master_gain: RangeInfo {
+            min: -24.0,
+            max: 24.0,
+            unit: "dB".to_string(),
+            description: "Master output gain".to_string(),
+        },
+        delay: RangeInfo {
+            min: 0.0,
+            max: 10.0,
+            unit: "ms".to_string(),
+            description: "Output delay compensation".to_string(),
+        },
+    };
+
+    Ok(Json(CapabilitiesResponse {
+        eq_types,
+        parameter_ranges,
+    }))
 }

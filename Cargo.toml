@@ -1,6 +1,6 @@
 [package]
 name = "pw-api"
-version = "2.0.5"
+version = "2.0.7"
 edition = "2021"
 authors = ["HiFiBerry <info@hifiberry.com>"]
 license = "MIT"
@@ -32,3 +32,4 @@ humantime = "2.1"
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
+tempfile = "3.8"

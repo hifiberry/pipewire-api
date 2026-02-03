@@ -178,6 +178,11 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 description: "Get SpeakerEQ complete status",
             },
             EndpointInfo {
+                path: "/api/module/speakereq/capabilities",
+                methods: vec!["GET"],
+                description: "Get supported filter types and parameter ranges",
+            },
+            EndpointInfo {
                 path: "/api/module/speakereq/eq/:block/:band",
                 methods: vec!["GET", "PUT"],
                 description: "Get/set EQ band parameters",
@@ -211,6 +216,16 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 path: "/api/module/speakereq/default",
                 methods: vec!["POST"],
                 description: "Reset to default settings",
+            },
+            EndpointInfo {
+                path: "/api/module/speakereq/crossbar",
+                methods: vec!["GET", "PUT"],
+                description: "Get/set crossbar routing matrix",
+            },
+            EndpointInfo {
+                path: "/api/module/speakereq/crossbar/:input/:output",
+                methods: vec!["PUT"],
+                description: "Set single crossbar value",
             },
             // RIAA module endpoints
             EndpointInfo {
