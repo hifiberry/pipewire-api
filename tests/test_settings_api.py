@@ -70,12 +70,7 @@ class TestSettingsSaveRestore:
         assert "riaa" in settings
     
     def test_save_includes_speakereq_settings(self, api_server):
-        """Test that saved settings include speakereq module configuration if available"""
-        # Try to get current status first
-        status_response = requests.get(f"{api_server}/api/v1/speakereq/status")
-        if status_response.status_code != 200:
-            pytest.skip("SpeakerEQ module not available")
-        
+        """Test that saved settings include speakereq module configuration"""
         # Save settings
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
@@ -85,19 +80,16 @@ class TestSettingsSaveRestore:
         with open(settings_file_path, 'r') as f:
             settings = json.load(f)
         
-        if settings.get("speakereq") is not None:
-            speakereq = settings["speakereq"]
-            assert "enabled" in speakereq
-            assert "master_gain_db" in speakereq
-            assert "eq_type" in speakereq
+        # Verify speakereq data is present
+        assert settings.get("speakereq") is not None, "SpeakerEQ settings should be saved"
+        speakereq = settings["speakereq"]
+        assert "enabled" in speakereq
+        assert "master_gain_db" in speakereq
+        assert "inputs" in speakereq
+        assert "outputs" in speakereq
     
     def test_save_includes_riaa_settings(self, api_server):
-        """Test that saved settings include riaa module configuration if available"""
-        # Try to get current status first
-        status_response = requests.get(f"{api_server}/api/v1/riaa/config")
-        if status_response.status_code != 200:
-            pytest.skip("RIAA module not available")
-        
+        """Test that saved settings include riaa module configuration"""
         # Save settings
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
@@ -107,11 +99,13 @@ class TestSettingsSaveRestore:
         with open(settings_file_path, 'r') as f:
             settings = json.load(f)
         
-        if settings.get("riaa") is not None:
-            riaa = settings["riaa"]
-            assert "gain_db" in riaa
-            assert "riaa_enable" in riaa
-            assert "declick_enable" in riaa
+        # Verify riaa data is present
+        assert settings.get("riaa") is not None, "RIAA settings should be saved"
+        riaa = settings["riaa"]
+        assert "gain_db" in riaa
+        assert "riaa_enable" in riaa
+        assert "declick_enable" in riaa
+        assert "subsonic_filter" in riaa
     
     def test_restore_without_file_returns_success(self, api_server):
         """Test that restore returns success even when no settings file exists"""
