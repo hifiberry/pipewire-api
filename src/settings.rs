@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn test_settings_serialization() {
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
@@ -389,7 +389,7 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
         
-        assert_eq!(deserialized.version, "2.0.8");
+        assert_eq!(deserialized.version, "2.0.9");
         assert!(deserialized.speakereq.is_none());
         assert!(deserialized.riaa.is_none());
     }
@@ -431,7 +431,7 @@ mod tests {
         };
         
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: Some(speakereq_status),
             riaa: None,
         };
@@ -439,7 +439,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
         
-        assert_eq!(deserialized.version, "2.0.8");
+        assert_eq!(deserialized.version, "2.0.9");
         assert!(deserialized.speakereq.is_some());
         
         let speakereq = deserialized.speakereq.unwrap();
@@ -456,7 +456,7 @@ mod tests {
         let _temp_dir = setup_test_env();
         
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
@@ -470,7 +470,7 @@ mod tests {
         let read_json = fs::read_to_string(&path).unwrap();
         let deserialized: Settings = serde_json::from_str(&read_json).unwrap();
         
-        assert_eq!(deserialized.version, "2.0.8");
+        assert_eq!(deserialized.version, "2.0.9");
     }
 
     #[test]
@@ -486,7 +486,7 @@ mod tests {
     #[test]
     fn test_empty_settings_json_structure() {
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
@@ -496,7 +496,7 @@ mod tests {
         assert!(json.contains("\"version\""));
         assert!(json.contains("\"speakereq\""));
         assert!(json.contains("\"riaa\""));
-        assert!(json.contains("2.0.8"));
+        assert!(json.contains("2.0.9"));
     }
 
     #[test]
@@ -519,7 +519,7 @@ mod tests {
         };
         
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: Some(speakereq_status),
             riaa: None,
         };
@@ -551,7 +551,7 @@ mod tests {
         };
         
         let settings = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: Some(riaa_config),
         };
@@ -559,7 +559,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
         
-        assert_eq!(deserialized.version, "2.0.8");
+        assert_eq!(deserialized.version, "2.0.9");
         assert!(deserialized.riaa.is_some());
         
         let riaa = deserialized.riaa.unwrap();
@@ -614,13 +614,13 @@ mod tests {
     fn test_settings_json_comparison() {
         // Test that identical settings produce identical JSON
         let settings1 = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
         
         let settings2 = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
@@ -637,13 +637,13 @@ mod tests {
         
         // Test that different settings produce different JSON
         let settings1 = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: None,
         };
         
         let settings2 = Settings {
-            version: "2.0.8".to_string(),
+            version: "2.0.9".to_string(),
             speakereq: None,
             riaa: Some(RiaaConfig {
                 gain_db: 5.0,
