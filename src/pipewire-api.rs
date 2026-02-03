@@ -48,6 +48,15 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Load and apply parameter rules on startup
+    let param_rules = pw_api::config::load_all_param_rules();
+    if !param_rules.is_empty() {
+        tracing::info!("Applying {} parameter rule(s)", param_rules.len());
+        if let Err(e) = pw_api::param_rules::apply_param_rules(&param_rules).await {
+            tracing::error!("Failed to apply parameter rules: {}", e);
+        }
+    }
+
     // Load link rules unless disabled
     if !args.no_auto_link {
         // Load rules from config files (user config takes precedence over system config)
@@ -91,8 +100,9 @@ async fn main() -> Result<()> {
     
     // Create router with global api and module-specific endpoints
     let app = pw_api::api::create_router(app_state.clone())
-        .merge(pw_api::speakereq::create_router(speakereq_state))
-        .merge(pw_api::riaa::create_router(riaa_state))
+        .merge(pw_api::speakereq::create_router(speakereq_state.clone()))
+        .merge(pw_api::riaa::create_router(riaa_state.clone()))
+        .merge(pw_api::settings::create_router(speakereq_state, riaa_state))
         .merge(pw_api::graph::create_graph_router().with_state(app_state));
 
     // Bind to localhost or all interfaces

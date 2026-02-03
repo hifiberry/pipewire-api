@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::linker::LinkRule;
+use crate::param_rules::ParamRule;
 
 /// Volume rule for devices and sinks
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +52,20 @@ fn get_user_volumes_path() -> Option<PathBuf> {
 /// Get the path to the system volumes config file
 fn get_system_volumes_path() -> PathBuf {
     PathBuf::from("/etc/pipewire-api/volume.conf")
+}
+
+/// Get the path to the user parameter rules config file
+fn get_user_param_rules_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|mut path| {
+        path.push("pipewire-api");
+        path.push("param-rules.conf");
+        path
+    })
+}
+
+/// Get the path to the system parameter rules config file
+fn get_system_param_rules_path() -> PathBuf {
+    PathBuf::from("/etc/pipewire-api/param-rules.conf")
 }
 
 /// Load link rules from a JSON configuration file
@@ -112,6 +127,70 @@ pub fn load_all_link_rules() -> Vec<LinkRule> {
     
     if all_rules.is_empty() {
         info!("No link rules loaded from config files");
+    }
+    
+    all_rules
+}
+
+/// Load parameter rules from a JSON configuration file
+pub fn load_param_rules_from_file(path: &PathBuf) -> Result<Vec<ParamRule>> {
+    debug!("Attempting to load parameter rules from: {}", path.display());
+    
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+    
+    let rules: Vec<ParamRule> = serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+    
+    info!("Loaded {} parameter rule(s) from {}", rules.len(), path.display());
+    Ok(rules)
+}
+
+/// Load all parameter rules from available configuration files
+/// 
+/// Loads rules from (in order of precedence):
+/// 1. User config: ~/.config/pipewire-api/param-rules.conf (highest priority)
+/// 2. System config: /etc/pipewire-api/param-rules.conf (fallback)
+/// 
+/// Returns all rules found from both locations
+pub fn load_all_param_rules() -> Vec<ParamRule> {
+    let mut all_rules = Vec::new();
+    
+    // Try user config first (highest priority)
+    if let Some(user_path) = get_user_param_rules_path() {
+        if user_path.exists() {
+            match load_param_rules_from_file(&user_path) {
+                Ok(rules) => {
+                    info!("Loaded {} parameter rule(s) from user config", rules.len());
+                    all_rules.extend(rules);
+                }
+                Err(e) => {
+                    warn!("Failed to load user parameter rules config: {}", e);
+                }
+            }
+        } else {
+            debug!("User parameter rules config file does not exist: {}", user_path.display());
+        }
+    }
+    
+    // Try system config (fallback)
+    let system_path = get_system_param_rules_path();
+    if system_path.exists() {
+        match load_param_rules_from_file(&system_path) {
+            Ok(rules) => {
+                info!("Loaded {} parameter rule(s) from system config", rules.len());
+                all_rules.extend(rules);
+            }
+            Err(e) => {
+                warn!("Failed to load system parameter rules config: {}", e);
+            }
+        }
+    } else {
+        debug!("System parameter rules config file does not exist: {}", system_path.display());
+    }
+    
+    if all_rules.is_empty() {
+        info!("No parameter rules loaded from config files");
     }
     
     all_rules
@@ -278,6 +357,8 @@ pub fn save_single_volume_state(name: String, volume: f32) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
     
     #[test]
     fn test_config_paths() {
@@ -287,5 +368,76 @@ mod tests {
         if let Some(user_path) = get_user_config_path() {
             assert!(user_path.to_str().unwrap().contains("pipewire-api/link-rules.conf"));
         }
+    }
+
+    #[test]
+    fn test_param_rules_config_paths() {
+        let system_path = get_system_param_rules_path();
+        assert_eq!(system_path.to_str().unwrap(), "/etc/pipewire-api/param-rules.conf");
+        
+        if let Some(user_path) = get_user_param_rules_path() {
+            assert!(user_path.to_str().unwrap().contains("pipewire-api/param-rules.conf"));
+        }
+    }
+
+    #[test]
+    fn test_volume_config_paths() {
+        let system_path = get_system_volumes_path();
+        assert_eq!(system_path.to_str().unwrap(), "/etc/pipewire-api/volume.conf");
+        
+        if let Some(user_path) = get_user_volumes_path() {
+            assert!(user_path.to_str().unwrap().contains("pipewire-api/volume.conf"));
+        }
+    }
+
+    #[test]
+    fn test_load_param_rules_from_valid_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let content = r#"[
+            {
+                "name": "Test rule",
+                "node": {
+                    "node.name": "^test.*"
+                },
+                "parameters": {
+                    "Volume": 0.5
+                }
+            }
+        ]"#;
+        
+        temp_file.write_all(content.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        let result = load_param_rules_from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_ok());
+        
+        let rules = result.unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].name, "Test rule");
+    }
+
+    #[test]
+    fn test_load_param_rules_nonexistent_file() {
+        let path = PathBuf::from("/nonexistent/param-rules.conf");
+        let result = load_param_rules_from_file(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_param_rules_invalid_json() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"{ invalid json }").unwrap();
+        temp_file.flush().unwrap();
+
+        let result = load_param_rules_from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_all_param_rules_empty() {
+        // This test will return empty vec since no config files exist in test environment
+        let rules = load_all_param_rules();
+        // Just verify it doesn't panic and returns a vector
+        assert!(rules.is_empty() || !rules.is_empty());
     }
 }

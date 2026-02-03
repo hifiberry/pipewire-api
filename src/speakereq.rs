@@ -22,7 +22,7 @@ const EQ_TYPE_ALL_PASS: i32 = 8;
 
 /// Helper to get the actual plugin name prefix from parameters
 /// Returns the prefix like "speakereq2x2" from parameter names like "speakereq2x2:Enable"
-fn get_plugin_prefix(params: &HashMap<String, ParameterValue>) -> String {
+pub fn get_plugin_prefix(params: &HashMap<String, ParameterValue>) -> String {
     // Find any parameter key that contains a colon and extract the prefix
     for key in params.keys() {
         if let Some(colon_pos) = key.find(':') {
@@ -195,7 +195,7 @@ fn eq_type_to_string(type_id: i32) -> String {
     }
 }
 
-fn eq_type_from_string(type_str: &str) -> Result<i32, ApiError> {
+pub fn eq_type_from_string(type_str: &str) -> Result<i32, ApiError> {
     match type_str.to_lowercase().as_str() {
         "off" => Ok(EQ_TYPE_OFF),
         "low_shelf" => Ok(EQ_TYPE_LOW_SHELF),

@@ -3,3 +3,4 @@ LINKS_API.md usr/share/doc/pipewire-api/
 volume.md usr/share/doc/pipewire-api/
 link-rules.conf etc/pipewire-api/
 volume.conf etc/pipewire-api/
+param-rules.conf etc/pipewire-api/

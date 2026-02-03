@@ -14,6 +14,8 @@ pub mod wpctl;
 pub mod pwcli;
 pub mod pwlink;
 pub mod graph;
+pub mod param_rules;
+pub mod settings;
 
 pub use parameters::ParameterValue;
 pub use api_server::{AppState, NodeState};

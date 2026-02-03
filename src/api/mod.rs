@@ -183,6 +183,16 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 description: "Get supported filter types and parameter ranges",
             },
             EndpointInfo {
+                path: "/api/v1/settings/save",
+                methods: vec!["POST"],
+                description: "Save current settings to ~/.state/pipewire-api/settings.json",
+            },
+            EndpointInfo {
+                path: "/api/v1/settings/restore",
+                methods: vec!["POST"],
+                description: "Restore settings from ~/.state/pipewire-api/settings.json",
+            },
+            EndpointInfo {
                 path: "/api/module/speakereq/eq/:block/:band",
                 methods: vec!["GET", "PUT"],
                 description: "Get/set EQ band parameters",

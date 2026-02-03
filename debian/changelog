@@ -1,3 +1,14 @@
+pipewire-api (2.0.8-1) stable; urgency=medium
+
+  * Added settings save/restore functionality
+    - New /api/v1/settings/save endpoint to save all module settings
+    - New /api/v1/settings/restore endpoint to restore saved settings
+    - Settings stored in ~/.state/pipewire-api/settings.json
+    - Serializes complete SpeakerEQ state (EQ, gains, crossbar, etc.)
+    - 7 comprehensive unit tests for settings module
+
+ -- HiFiBerry <info@hifiberry.com>  Mon, 03 Feb 2026 15:00:00 +0100
+
 pipewire-api (2.0.7-1) stable; urgency=medium
 
   * Added /api/v1/module/speakereq/capabilities endpoint
