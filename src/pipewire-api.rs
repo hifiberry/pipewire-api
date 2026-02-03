@@ -22,14 +22,33 @@ struct Args {
     /// Do not start the API server, only apply initial rules and exit
     #[arg(long)]
     no_api: bool,
+
+    /// Log level: error, warn, info, debug, trace
+    #[arg(long, default_value = "warn")]
+    log_level: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing with specified log level
+    let log_level = args.log_level.to_lowercase();
+    let env_filter = match log_level.as_str() {
+        "error" => tracing_subscriber::EnvFilter::new("error"),
+        "warn" => tracing_subscriber::EnvFilter::new("warn"),
+        "info" => tracing_subscriber::EnvFilter::new("info"),
+        "debug" => tracing_subscriber::EnvFilter::new("debug"),
+        "trace" => tracing_subscriber::EnvFilter::new("trace"),
+        _ => {
+            eprintln!("Invalid log level '{}', using 'warn'", args.log_level);
+            tracing_subscriber::EnvFilter::new("warn")
+        }
+    };
+    
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 
     // Create global application state (not tied to any specific node)
     let app_state = Arc::new(AppState::new());

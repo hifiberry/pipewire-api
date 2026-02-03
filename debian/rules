@@ -21,7 +21,7 @@ override_dh_auto_install:
 	echo "[Service]" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
 	echo "Type=simple" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
 	echo "ExecStartPre=/bin/sleep 2" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
-	echo "ExecStart=/usr/bin/pipewire-api" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
+	echo "ExecStart=/usr/bin/pipewire-api --log-level info" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
 	echo "Restart=on-failure" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
 	echo "RestartSec=5" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service
 	echo "" >> $(CURDIR)/debian/pipewire-api/usr/lib/systemd/user/pipewire-api.service

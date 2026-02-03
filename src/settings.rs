@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
+use tracing::info;
 use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
@@ -95,6 +96,9 @@ pub async fn save_settings(
     // Write to file
     fs::write(&path, &json)
         .map_err(|e| ApiError::Internal(format!("Failed to write settings file: {}", e)))?;
+    
+    // Log to console for systemd journal
+    info!("Settings saved to {}", path.display());
     
     // Update last_saved state
     let mut last_saved = state.auto_save.last_saved.write().await;
@@ -310,7 +314,7 @@ pub async fn auto_save_task(state: SettingsState) {
                         eprintln!("Auto-save: Failed to write settings: {}", e);
                     } else {
                         *last_saved = Some(current_json);
-                        println!("Auto-save: Settings saved to {}", path.display());
+                        info!("Auto-save: Settings saved to {}", path.display());
                     }
                 }
                 Err(e) => {

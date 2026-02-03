@@ -24,8 +24,16 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
     tokio::spawn(async move {
         // Check every second for rules that need to be applied
         let mut ticker = interval(Duration::from_secs(1));
+        
+        // Initialize last_check with current time for rules that were already applied at startup
+        // This prevents duplicate application of link_at_startup rules
+        let rules = state.get_link_rules();
         let mut last_check: std::collections::HashMap<usize, std::time::Instant> =
-            std::collections::HashMap::new();
+            rules.iter()
+                .enumerate()
+                .filter(|(_, rule)| rule.link_at_startup)
+                .map(|(idx, _)| (idx, std::time::Instant::now()))
+                .collect();
 
         info!("Link scheduler started");
 
@@ -47,8 +55,8 @@ pub fn start_link_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<()>
                 let should_apply = if let Some(last) = last_check.get(&idx) {
                     last.elapsed() >= Duration::from_secs(rule.relink_every)
                 } else {
-                    // First time seeing this rule, apply if link_at_startup is true
-                    rule.link_at_startup
+                    // First time seeing this rule (shouldn't happen since we initialized above)
+                    false
                 };
 
                 if should_apply {
