@@ -71,6 +71,11 @@ class TestSettingsSaveRestore:
     
     def test_save_includes_speakereq_settings(self, api_server):
         """Test that saved settings include speakereq module configuration"""
+        # Check if speakereq module is available
+        status_response = requests.get(f"{api_server}/api/v1/module/speakereq/status")
+        if status_response.status_code != 200:
+            pytest.skip("SpeakerEQ module not available")
+        
         # Save settings
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
@@ -90,6 +95,11 @@ class TestSettingsSaveRestore:
     
     def test_save_includes_riaa_settings(self, api_server):
         """Test that saved settings include riaa module configuration"""
+        # Check if riaa module is available
+        config_response = requests.get(f"{api_server}/api/v1/module/riaa/config")
+        if config_response.status_code != 200:
+            pytest.skip("RIAA module not available")
+        
         # Save settings
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
