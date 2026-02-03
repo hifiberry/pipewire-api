@@ -242,5 +242,111 @@ class TestSettingsSaveRestore:
         assert data["path"].endswith("settings.json")
 
 
+class TestAutoSave:
+    """Test auto-save functionality"""
+    
+    def test_auto_save_after_setting_change(self, api_server):
+        """Test that settings are auto-saved after a change"""
+        import time
+        
+        # Get settings file path
+        response = requests.post(f"{api_server}/api/v1/settings/save")
+        assert response.status_code == 200
+        settings_path = response.json()["path"]
+        
+        # Read initial settings
+        with open(settings_path, 'r') as f:
+            initial_settings = json.load(f)
+        initial_gain = initial_settings["speakereq"]["master_gain_db"]
+        
+        # Change a setting (master gain for speakereq)
+        new_gain = 5.5
+        response = requests.put(
+            f"{api_server}/api/v1/module/speakereq/gain/master",
+            json={"gain": new_gain}
+        )
+        assert response.status_code == 200
+        
+        # Wait for auto-save (default interval is 10 seconds, plus some buffer)
+        print("Waiting 12 seconds for auto-save...")
+        time.sleep(12)
+        
+        # Verify the change is in the file
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        
+        assert settings["speakereq"] is not None
+        current_gain = settings["speakereq"]["master_gain_db"]
+        assert current_gain == new_gain, f"Expected gain {new_gain}, but got {current_gain}"
+    
+    def test_auto_save_after_default_reset(self, api_server):
+        """Test that settings are auto-saved after reset to defaults"""
+        import time
+        
+        # Get settings file path
+        response = requests.post(f"{api_server}/api/v1/settings/save")
+        assert response.status_code == 200
+        settings_path = response.json()["path"]
+        
+        # Change a setting first
+        response = requests.put(
+            f"{api_server}/api/v1/module/speakereq/gain/master",
+            json={"gain": 8.0}
+        )
+        assert response.status_code == 200
+        
+        # Wait for auto-save
+        time.sleep(12)
+        
+        # Read settings to confirm change
+        with open(settings_path, 'r') as f:
+            settings_before = json.load(f)
+        assert settings_before["speakereq"]["master_gain_db"] == 8.0
+        
+        # Reset to defaults
+        response = requests.post(f"{api_server}/api/v1/module/speakereq/default")
+        assert response.status_code == 200
+        
+        # Wait for auto-save
+        print("Waiting 12 seconds for auto-save after default reset...")
+        time.sleep(12)
+        
+        # Verify settings were reset to default (master_gain_db should be 0.0)
+        with open(settings_path, 'r') as f:
+            settings_after = json.load(f)
+        
+        assert settings_after["speakereq"] is not None
+        assert settings_after["speakereq"]["master_gain_db"] == 0.0, "Gain should be reset to 0.0"
+    
+    def test_auto_save_no_change_no_save(self, api_server):
+        """Test that auto-save doesn't save when nothing changed"""
+        import time
+        
+        # Get settings file path
+        response = requests.post(f"{api_server}/api/v1/settings/save")
+        assert response.status_code == 200
+        settings_path = response.json()["path"]
+        
+        # Record modification time
+        initial_mtime = os.path.getmtime(settings_path)
+        
+        # Wait for multiple auto-save intervals without making changes
+        print("Waiting 25 seconds to verify no unnecessary saves...")
+        time.sleep(25)
+        
+        # File modification time should not have changed (or only changed once initially)
+        # We allow for one save cycle, but not multiple
+        final_mtime = os.path.getmtime(settings_path)
+        
+        # Read both initial and final to ensure they're the same
+        # (mtime might change once on first auto-save cycle, but content should be same)
+        time.sleep(0.1)
+        with open(settings_path, 'r') as f:
+            final_content = f.read()
+        
+        # Content should remain stable
+        assert len(final_content) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

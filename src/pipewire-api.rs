@@ -102,7 +102,7 @@ async fn main() -> Result<()> {
     let app = pw_api::api::create_router(app_state.clone())
         .merge(pw_api::speakereq::create_router(speakereq_state.clone()))
         .merge(pw_api::riaa::create_router(riaa_state.clone()))
-        .merge(pw_api::settings::create_router(speakereq_state, riaa_state))
+        .merge(pw_api::settings::create_router(speakereq_state, riaa_state, Some(10)))
         .merge(pw_api::graph::create_graph_router().with_state(app_state));
 
     // Bind to localhost or all interfaces

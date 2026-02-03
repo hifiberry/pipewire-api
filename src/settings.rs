@@ -8,14 +8,41 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::collections::HashMap;
+use tokio::sync::RwLock;
+use tokio::time::{interval, Duration};
 use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
-/// Shared state containing both module states
+/// Shared state containing both module states and auto-save state
 #[derive(Clone)]
 pub struct SettingsState {
     pub speakereq: Arc<NodeState>,
     pub riaa: Arc<NodeState>,
+    pub auto_save: Arc<AutoSaveState>,
+}
+
+/// Auto-save state tracking
+pub struct AutoSaveState {
+    pub last_saved: RwLock<Option<String>>,
+    pub interval_secs: u64,
+}
+
+impl AutoSaveState {
+    pub fn new(interval_secs: u64) -> Self {
+        Self {
+            last_saved: RwLock::new(None),
+            interval_secs,
+        }
+    }
+    
+    /// Initialize with existing file content if available
+    pub fn new_with_file(interval_secs: u64, file_path: &PathBuf) -> Self {
+        let initial_content = fs::read_to_string(file_path).ok();
+        Self {
+            last_saved: RwLock::new(initial_content),
+            interval_secs,
+        }
+    }
 }
 
 /// Complete settings state for all modules
@@ -62,41 +89,16 @@ pub async fn save_settings(
 ) -> Result<Json<SaveResponse>, ApiError> {
     let path = get_settings_path()?;
     
-    // Get cached parameters from each module state
-    let speakereq_status = match state.speakereq.get_params() {
-        Ok(_params) => {
-            // Use get_status which reads from cached params
-            match crate::speakereq::get_status(State(state.speakereq.clone())).await {
-                Ok(Json(status)) => Some(status),
-                Err(_) => None,
-            }
-        }
-        Err(_) => None,
-    };
-    
-    let riaa_config = match state.riaa.get_params() {
-        Ok(_params) => {
-            match crate::riaa::get_config(State(state.riaa.clone())).await {
-                Ok(Json(config)) => Some(config),
-                Err(_) => None,
-            }
-        }
-        Err(_) => None,
-    };
-    
-    let settings = Settings {
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        speakereq: speakereq_status,
-        riaa: riaa_config,
-    };
-    
-    // Serialize to JSON with pretty formatting
-    let json = serde_json::to_string_pretty(&settings)
-        .map_err(|e| ApiError::Internal(format!("Failed to serialize settings: {}", e)))?;
+    // Get current settings as JSON
+    let json = get_current_settings_json(&state).await?;
     
     // Write to file
-    fs::write(&path, json)
+    fs::write(&path, &json)
         .map_err(|e| ApiError::Internal(format!("Failed to write settings file: {}", e)))?;
+    
+    // Update last_saved state
+    let mut last_saved = state.auto_save.last_saved.write().await;
+    *last_saved = Some(json);
     
     Ok(Json(SaveResponse {
         success: true,
@@ -244,15 +246,106 @@ pub async fn restore_settings(
     }))
 }
 
-/// Create the settings router with both module states
+/// Get current settings as JSON string (for comparison)
+async fn get_current_settings_json(state: &SettingsState) -> Result<String, ApiError> {
+    // Get cached parameters from each module state
+    let speakereq_status = match state.speakereq.get_params() {
+        Ok(_params) => {
+            match crate::speakereq::get_status(State(state.speakereq.clone())).await {
+                Ok(Json(status)) => Some(status),
+                Err(_) => None,
+            }
+        }
+        Err(_) => None,
+    };
+    
+    let riaa_config = match state.riaa.get_params() {
+        Ok(_params) => {
+            match crate::riaa::get_config(State(state.riaa.clone())).await {
+                Ok(Json(config)) => Some(config),
+                Err(_) => None,
+            }
+        }
+        Err(_) => None,
+    };
+    
+    let settings = Settings {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        speakereq: speakereq_status,
+        riaa: riaa_config,
+    };
+    
+    serde_json::to_string_pretty(&settings)
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize settings: {}", e)))
+}
+
+/// Background task that auto-saves settings when they change
+pub async fn auto_save_task(state: SettingsState) {
+    let mut interval = interval(Duration::from_secs(state.auto_save.interval_secs));
+    
+    loop {
+        interval.tick().await;
+        
+        // Get current settings as JSON
+        let current_json = match get_current_settings_json(&state).await {
+            Ok(json) => json,
+            Err(e) => {
+                eprintln!("Auto-save: Failed to get current settings: {:?}", e);
+                continue;
+            }
+        };
+        
+        // Check if settings have changed
+        let mut last_saved = state.auto_save.last_saved.write().await;
+        let has_changed = match &*last_saved {
+            Some(prev) => prev != &current_json,
+            None => true, // First run, no previous state
+        };
+        
+        if has_changed {
+            // Save settings
+            match get_settings_path() {
+                Ok(path) => {
+                    if let Err(e) = fs::write(&path, &current_json) {
+                        eprintln!("Auto-save: Failed to write settings: {}", e);
+                    } else {
+                        *last_saved = Some(current_json);
+                        println!("Auto-save: Settings saved to {}", path.display());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Auto-save: Failed to get settings path: {:?}", e);
+                }
+            }
+        }
+    }
+}
+
+/// Create the settings router with both module states and start auto-save task
 pub fn create_router(
     speakereq_state: Arc<NodeState>,
     riaa_state: Arc<NodeState>,
+    auto_save_interval_secs: Option<u64>,
 ) -> Router {
+    // Initialize auto-save state with existing file content if available
+    let auto_save = match get_settings_path() {
+        Ok(path) if path.exists() => {
+            Arc::new(AutoSaveState::new_with_file(auto_save_interval_secs.unwrap_or(10), &path))
+        }
+        _ => Arc::new(AutoSaveState::new(auto_save_interval_secs.unwrap_or(10))),
+    };
+    
     let settings_state = SettingsState {
         speakereq: speakereq_state,
         riaa: riaa_state,
+        auto_save,
     };
+    
+    // Spawn auto-save background task
+    let task_state = settings_state.clone();
+    tokio::spawn(async move {
+        auto_save_task(task_state).await;
+    });
     
     Router::new()
         .route("/api/v1/settings/save", post(save_settings))
@@ -476,5 +569,98 @@ mod tests {
         assert_eq!(riaa.declick_enable, true);
         assert_eq!(riaa.notch_filter_enable, true);
         assert_eq!(riaa.notch_frequency_hz, 60.0);
+    }
+
+    #[test]
+    fn test_auto_save_state_creation() {
+        let auto_save = AutoSaveState::new(10);
+        assert_eq!(auto_save.interval_secs, 10);
+        
+        // Check initial state is None
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let last_saved = auto_save.last_saved.read().await;
+            assert!(last_saved.is_none());
+        });
+    }
+
+    #[test]
+    fn test_auto_save_state_update() {
+        let auto_save = AutoSaveState::new(5);
+        
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            // Initially None
+            {
+                let last_saved = auto_save.last_saved.read().await;
+                assert!(last_saved.is_none());
+            }
+            
+            // Update state
+            {
+                let mut last_saved = auto_save.last_saved.write().await;
+                *last_saved = Some("test_json".to_string());
+            }
+            
+            // Verify update
+            {
+                let last_saved = auto_save.last_saved.read().await;
+                assert_eq!(last_saved.as_ref().unwrap(), "test_json");
+            }
+        });
+    }
+
+    #[test]
+    fn test_settings_json_comparison() {
+        // Test that identical settings produce identical JSON
+        let settings1 = Settings {
+            version: "2.0.8".to_string(),
+            speakereq: None,
+            riaa: None,
+        };
+        
+        let settings2 = Settings {
+            version: "2.0.8".to_string(),
+            speakereq: None,
+            riaa: None,
+        };
+        
+        let json1 = serde_json::to_string_pretty(&settings1).unwrap();
+        let json2 = serde_json::to_string_pretty(&settings2).unwrap();
+        
+        assert_eq!(json1, json2);
+    }
+
+    #[test]
+    fn test_settings_json_detects_changes() {
+        use crate::riaa::RiaaConfig;
+        
+        // Test that different settings produce different JSON
+        let settings1 = Settings {
+            version: "2.0.8".to_string(),
+            speakereq: None,
+            riaa: None,
+        };
+        
+        let settings2 = Settings {
+            version: "2.0.8".to_string(),
+            speakereq: None,
+            riaa: Some(RiaaConfig {
+                gain_db: 5.0,
+                subsonic_filter: 1,
+                riaa_enable: true,
+                declick_enable: false,
+                spike_threshold_db: 25.0,
+                spike_width_ms: 2.0,
+                notch_filter_enable: false,
+                notch_frequency_hz: 50.0,
+                notch_q_factor: 30.0,
+            }),
+        };
+        
+        let json1 = serde_json::to_string_pretty(&settings1).unwrap();
+        let json2 = serde_json::to_string_pretty(&settings2).unwrap();
+        
+        assert_ne!(json1, json2);
     }
 }
