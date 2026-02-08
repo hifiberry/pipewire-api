@@ -30,19 +30,23 @@ pub async fn list_all_properties(
 ) -> Result<Json<PropertiesResponse>, ApiError> {
     // Try to use cached objects first
     let cached = state.get_cached_objects();
-    
+
     let objects = if !cached.is_empty() {
         cached
     } else {
         // Fall back to fresh query
-        pwcli::list_all()
-            .map_err(|e| ApiError::Internal(format!("Failed to list objects: {}", e)))?
+        tokio::task::spawn_blocking(|| {
+            pwcli::list_all()
+        })
+        .await
+        .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to list objects: {}", e)))?
     };
-    
+
     let objects_with_props: Vec<PipeWireObjectWithProperties> = objects.iter()
         .map(to_object_with_properties)
         .collect();
-    
+
     Ok(Json(PropertiesResponse { objects: objects_with_props }))
 }
 
@@ -56,9 +60,15 @@ pub async fn get_object_properties(
     if let Some(obj) = state.get_object_by_id(id) {
         return Ok(Json(to_object_with_properties(&obj)));
     }
-    
+
     // Fall back to fresh query
-    match pwcli::get_object(id) {
+    let result = tokio::task::spawn_blocking(move || {
+        pwcli::get_object(id)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?;
+
+    match result {
         Ok(Some(obj)) => Ok(Json(to_object_with_properties(&obj))),
         Ok(None) => Err(ApiError::NotFound(format!("Object {} not found", id))),
         Err(e) => Err(ApiError::Internal(format!("Failed to get object: {}", e))),

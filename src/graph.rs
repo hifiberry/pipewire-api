@@ -31,7 +31,7 @@ struct FilterChain {
 fn is_audio_node(obj: &pwcli::PwObject) -> bool {
     // First, check media.class using the central classification function
     let classification = pwcli::classify_media_class(obj.media_class());
-    
+
     match classification {
         pwcli::NodeTypeClassification::Audio => return true,
         pwcli::NodeTypeClassification::Midi => return false,
@@ -45,7 +45,7 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
             // Apply additional heuristics for unknown cases
         }
     }
-    
+
     // Additional heuristics for "Unknown" cases (no media.class)
     // Check node.name for known patterns
     if let Some(name) = obj.properties.get("node.name") {
@@ -59,7 +59,7 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
             return false;
         }
         // Include known audio nodes
-        if name_lower.contains("alsa") 
+        if name_lower.contains("alsa")
             || name_lower.contains("speakereq")
             || name_lower.contains("riaa")
             || name_lower.contains("output")
@@ -70,18 +70,18 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
             return true;
         }
     }
-    
+
     // Default: include nodes without media.class that look like audio
     obj.object_type == "Node" || obj.object_type == "Device"
 }
-/// Detect filter-chain pairs: 
+/// Detect filter-chain pairs:
 /// Pattern 1: input (Audio/Sink) + output (Stream/Output/Audio, name=$base.output)
 /// Pattern 2: input (Audio/Source/Virtual) + output (Stream/Output/Audio, name=$base.output)
 /// Pattern 3: input ($name_input.proc) + output ($name_output.proc)
 fn detect_filter_chains(nodes: &[&pwcli::PwObject]) -> Vec<FilterChain> {
     let mut chains = Vec::new();
     let mut used_ids: HashSet<u32> = HashSet::new();
-    
+
     // Build a map of node.name -> (id, media.class)
     let mut name_to_info: HashMap<String, (u32, String)> = HashMap::new();
     for node in nodes {
@@ -92,7 +92,7 @@ fn detect_filter_chains(nodes: &[&pwcli::PwObject]) -> Vec<FilterChain> {
             name_to_info.insert(name.clone(), (node.id, media_class.to_string()));
         }
     }
-    
+
     // Pattern 1 & 2: Find input nodes (Audio/Sink or Audio/Source/Virtual) with matching $name.output
     for node in nodes {
         if let Some(media_class) = node.properties.get("media.class") {
@@ -114,7 +114,7 @@ fn detect_filter_chains(nodes: &[&pwcli::PwObject]) -> Vec<FilterChain> {
             }
         }
     }
-    
+
     // Pattern 3: Find pairs like foo_input.proc / foo_output.proc
     for node in nodes {
         if let Some(name) = node.properties.get("node.name") {
@@ -135,7 +135,7 @@ fn detect_filter_chains(nodes: &[&pwcli::PwObject]) -> Vec<FilterChain> {
             }
         }
     }
-    
+
     chains
 }
 
@@ -153,28 +153,28 @@ fn is_audio_port(obj: &pwcli::PwObject, audio_node_ids: &HashSet<u32>) -> bool {
 /// Generate DOT format graph of audio topology
 fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
     let mut dot = String::new();
-    
+
     dot.push_str("digraph PipeWire {\n");
     dot.push_str("    rankdir=TB;\n");
     dot.push_str("    node [shape=box, style=filled];\n");
     dot.push_str("    newrank=true;\n");
     dot.push_str("    compound=true;\n");
     dot.push_str("    \n");
-    
+
     // Collect audio nodes and their IDs
     let mut audio_node_ids: HashSet<u32> = HashSet::new();
     let mut nodes: Vec<&pwcli::PwObject> = Vec::new();
     let mut devices: Vec<&pwcli::PwObject> = Vec::new();
     let mut all_clients: HashMap<u32, &pwcli::PwObject> = HashMap::new();
     let mut node_to_client: HashMap<u32, u32> = HashMap::new();
-    
+
     // First pass: collect clients
     for obj in objects {
         if obj.object_type == "Client" {
             all_clients.insert(obj.id, obj);
         }
     }
-    
+
     // Second pass: collect nodes and map to clients
     for obj in objects {
         if obj.object_type == "Node" && is_audio_node(obj) {
@@ -190,37 +190,37 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             devices.push(obj);
         }
     }
-    
+
     // Detect filter-chains (input + output pairs)
     let filter_chains = detect_filter_chains(&nodes);
-    
+
     // Build sets for filter-chain node IDs
     let mut filter_chain_input_ids: HashSet<u32> = HashSet::new();
     let mut filter_chain_output_ids: HashSet<u32> = HashSet::new();
     let mut filter_chain_map: HashMap<u32, &FilterChain> = HashMap::new(); // maps input_id or output_id -> chain
-    
+
     // Track sources (inputs) and sinks (outputs) for ranking
     let mut source_nodes: Vec<String> = Vec::new();
     let mut sink_nodes: Vec<String> = Vec::new();
     let mut filter_nodes: Vec<String> = Vec::new();
-    
+
     // Track which clients are connected to audio nodes
     let mut connected_client_ids: HashSet<u32> = HashSet::new();
     for (_, client_id) in &node_to_client {
         connected_client_ids.insert(*client_id);
     }
-    
+
     for chain in &filter_chains {
         filter_chain_input_ids.insert(chain.input_id);
         filter_chain_output_ids.insert(chain.output_id);
         filter_chain_map.insert(chain.input_id, chain);
         filter_chain_map.insert(chain.output_id, chain);
     }
-    
+
     // Collect audio ports
     let mut ports: HashMap<u32, &pwcli::PwObject> = HashMap::new();
     let mut port_to_node: HashMap<u32, u32> = HashMap::new();
-    
+
     for obj in objects {
         if obj.object_type == "Port" && is_audio_port(obj, &audio_node_ids) {
             ports.insert(obj.id, obj);
@@ -231,7 +231,7 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             }
         }
     }
-    
+
     // Collect links between audio ports
     let mut links: Vec<&pwcli::PwObject> = Vec::new();
     for obj in objects {
@@ -241,7 +241,7 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
                 .and_then(|s| s.parse::<u32>().ok());
             let in_port_id = obj.properties.get("link.input.port")
                 .and_then(|s| s.parse::<u32>().ok());
-            
+
             if let (Some(out_id), Some(in_id)) = (out_port_id, in_port_id) {
                 if ports.contains_key(&out_id) || ports.contains_key(&in_id) {
                     links.push(obj);
@@ -249,25 +249,25 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             }
         }
     }
-    
+
     // Add clients that are connected to audio nodes (filter out internal pipewire/wireplumber clients)
     let connected_clients: Vec<_> = connected_client_ids.iter()
         .filter_map(|id| all_clients.get(id))
         .filter(|client| !client.is_internal_client())
         .collect();
-    
+
     // Create a set of filtered client IDs for edge drawing
     let filtered_client_ids: HashSet<u32> = connected_clients.iter().map(|c| c.id).collect();
-    
+
     // ========== Audio Graph ==========
-    
+
     // Add audio graph in its own cluster
     dot.push_str("    // Audio Graph\n");
     dot.push_str("    subgraph cluster_graph {\n");
     dot.push_str("        label=\"\";\n");
     dot.push_str("        style=invis;\n");
     dot.push_str("        \n");
-    
+
     // Add clients
     if !connected_clients.is_empty() {
         dot.push_str("        // Clients\n");
@@ -281,7 +281,7 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         }
         dot.push_str("\n");
     }
-    
+
     // 4. Add filter-chains as combined nodes
     if !filter_chains.is_empty() {
         dot.push_str("        // Filter Chains (combined input+output)\n");
@@ -296,7 +296,7 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         }
         dot.push('\n');
     }
-    
+
     // Add regular nodes (excluding filter-chain members)
     dot.push_str("        // Audio Nodes\n");
     for node in &nodes {
@@ -304,11 +304,11 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         if filter_chain_input_ids.contains(&node.id) || filter_chain_output_ids.contains(&node.id) {
             continue;
         }
-        
+
         let name = node.display_name();
         let escaped_name = name.replace('"', "\\\"");
         let node_name = format!("node_{}", node.id);
-        
+
         // Determine color and category based on media.class
         let (color, category) = if let Some(media_class) = node.properties.get("media.class") {
             let class_lower = media_class.to_lowercase();
@@ -328,26 +328,26 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
         } else {
             ("white", "filter")
         };
-        
+
         // Track for ranking
         match category {
             "source" => source_nodes.push(node_name.clone()),
             "sink" => sink_nodes.push(node_name.clone()),
             _ => filter_nodes.push(node_name.clone()),
         }
-        
+
         dot.push_str(&format!(
             "        {} [label=\"{}\\nID: {}\", fillcolor={}];\n",
             node_name, escaped_name, node.id, color
         ));
     }
     dot.push('\n');
-    
+
     // Add links between nodes (aggregate port links to node links)
     // For filter-chains, map input/output node IDs to the chain's input_id
     dot.push_str("        // Links\n");
     let mut node_links: HashSet<(String, String)> = HashSet::new();
-    
+
     // Helper to get the graph node name for a PipeWire node ID
     let get_graph_node = |node_id: u32| -> String {
         if let Some(chain) = filter_chain_map.get(&node_id) {
@@ -356,13 +356,13 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             format!("node_{}", node_id)
         }
     };
-    
+
     for link in &links {
         let out_port_id = link.properties.get("link.output.port")
             .and_then(|s| s.parse::<u32>().ok());
         let in_port_id = link.properties.get("link.input.port")
             .and_then(|s| s.parse::<u32>().ok());
-        
+
         if let (Some(out_id), Some(in_id)) = (out_port_id, in_port_id) {
             if let (Some(&out_node), Some(&in_node)) = (port_to_node.get(&out_id), port_to_node.get(&in_id)) {
                 // Only add if both nodes are audio nodes
@@ -377,11 +377,11 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             }
         }
     }
-    
+
     for (from, to) in node_links {
         dot.push_str(&format!("        {} -> {};\n", from, to));
     }
-    
+
     // Add client-to-node connections (dashed lines)
     dot.push_str("\n        // Client connections\n");
     for node in &nodes {
@@ -408,18 +408,18 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
             }
         }
     }
-    
+
     // Close the graph cluster
     dot.push_str("    }\n\n");
-    
+
     // Rank sinks at bottom
     if !sink_nodes.is_empty() {
         dot.push_str("    // Rank: sinks at bottom\n");
         dot.push_str(&format!("    {{ rank=max; {} }}\n", sink_nodes.join("; ")));
     }
-    
+
     dot.push_str("}\n");
-    
+
     dot
 }
 
@@ -427,98 +427,105 @@ fn generate_dot_graph(objects: &[pwcli::PwObject]) -> String {
 pub async fn get_graph_dot(
     State(_state): State<Arc<AppState>>,
 ) -> Response {
-    // Get all objects
-    let objects = match pwcli::list_all() {
-        Ok(objs) => objs,
-        Err(e) => {
-            error!("Failed to list PipeWire objects: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get PipeWire objects").into_response();
+    let result = tokio::task::spawn_blocking(|| {
+        let objects = pwcli::list_all()
+            .map_err(|e| format!("Failed to list PipeWire objects: {}", e))?;
+        Ok::<_, String>(generate_dot_graph(&objects))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(dot)) => {
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "text/vnd.graphviz")],
+                dot,
+            ).into_response()
         }
-    };
-    
-    let dot = generate_dot_graph(&objects);
-    
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/vnd.graphviz")],
-        dot,
-    ).into_response()
+        Ok(Err(e)) => {
+            error!("{}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get PipeWire objects").into_response()
+        }
+        Err(e) => {
+            error!("Task join error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()
+        }
+    }
 }
 
 /// Handler for GET /api/v1/graph/png - returns PNG image
 pub async fn get_graph_png(
     State(_state): State<Arc<AppState>>,
 ) -> Response {
-    // Check if graphviz (dot) is available
-    let dot_check = Command::new("which")
-        .arg("dot")
-        .output();
-    
-    match dot_check {
-        Ok(output) if output.status.success() => {
-            // dot is available
+    let result = tokio::task::spawn_blocking(|| {
+        // Check if graphviz (dot) is available
+        let dot_check = Command::new("which")
+            .arg("dot")
+            .output();
+
+        match dot_check {
+            Ok(output) if output.status.success() => {}
+            _ => {
+                return Err("Graphviz not found".to_string());
+            }
         }
-        _ => {
-            error!("Graphviz 'dot' command not found. Install graphviz to enable PNG graph generation.");
-            return (StatusCode::NOT_FOUND, "Graphviz not found").into_response();
+
+        // Get all objects
+        let objects = pwcli::list_all()
+            .map_err(|e| format!("Failed to list PipeWire objects: {}", e))?;
+
+        let dot = generate_dot_graph(&objects);
+
+        // Run dot to generate PNG
+        let mut child = Command::new("dot")
+            .arg("-Tpng")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn dot process: {}", e))?;
+
+        // Write DOT to stdin
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            stdin.write_all(dot.as_bytes())
+                .map_err(|e| format!("Failed to write to dot stdin: {}", e))?;
+        }
+
+        // Get output
+        let output = child.wait_with_output()
+            .map_err(|e| format!("Failed to wait for dot process: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("dot command failed: {}", stderr));
+        }
+
+        Ok(output.stdout)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(png_data)) => {
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "image/png")],
+                png_data,
+            ).into_response()
+        }
+        Ok(Err(e)) => {
+            error!("{}", e);
+            if e.contains("Graphviz not found") {
+                (StatusCode::NOT_FOUND, "Graphviz not found").into_response()
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate graph").into_response()
+            }
+        }
+        Err(e) => {
+            error!("Task join error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()
         }
     }
-    
-    // Get all objects
-    let objects = match pwcli::list_all() {
-        Ok(objs) => objs,
-        Err(e) => {
-            error!("Failed to list PipeWire objects: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get PipeWire objects").into_response();
-        }
-    };
-    
-    let dot = generate_dot_graph(&objects);
-    
-    // Run dot to generate PNG
-    let mut child = match Command::new("dot")
-        .arg("-Tpng")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(child) => child,
-        Err(e) => {
-            error!("Failed to spawn dot process: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to run graphviz").into_response();
-        }
-    };
-    
-    // Write DOT to stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        use std::io::Write;
-        if let Err(e) = stdin.write_all(dot.as_bytes()) {
-            error!("Failed to write to dot stdin: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate graph").into_response();
-        }
-    }
-    
-    // Get output
-    let output = match child.wait_with_output() {
-        Ok(output) => output,
-        Err(e) => {
-            error!("Failed to wait for dot process: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate graph").into_response();
-        }
-    };
-    
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("dot command failed: {}", stderr);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "Graphviz error").into_response();
-    }
-    
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "image/png")],
-        output.stdout,
-    ).into_response()
 }
 
 /// Create router for graph endpoints

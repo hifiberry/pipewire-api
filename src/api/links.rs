@@ -30,22 +30,6 @@ pub struct LinkResponse {
     pub link_id: Option<u32>,
 }
 
-/// A link in the list response
-#[derive(Debug, Clone, Serialize)]
-pub struct LinkInfo {
-    pub id: u32,
-    pub output_port_id: u32,
-    pub output_port_name: String,
-    pub input_port_id: u32,
-    pub input_port_name: String,
-}
-
-/// Response for list links
-#[derive(Debug, Clone, Serialize)]
-pub struct ListLinksResponse {
-    pub links: Vec<LinkInfo>,
-}
-
 /// A port in the list response
 #[derive(Debug, Clone, Serialize)]
 pub struct PortInfo {
@@ -61,35 +45,18 @@ pub struct ListPortsResponse {
     pub ports: Vec<PortInfo>,
 }
 
-/// List all links
-/// GET /api/v1/links
-pub async fn list_links(
-    State(_state): State<Arc<AppState>>,
-) -> Result<Json<ListLinksResponse>, ApiError> {
-    let links = pwlink::list_links()
-        .map_err(|e| ApiError::Internal(format!("Failed to list links: {}", e)))?;
-    
-    let link_infos: Vec<LinkInfo> = links.iter()
-        .map(|l| LinkInfo {
-            id: l.id,
-            output_port_id: l.output_port_id,
-            output_port_name: l.output_port_name.clone(),
-            input_port_id: l.input_port_id,
-            input_port_name: l.input_port_name.clone(),
-        })
-        .collect();
-    
-    Ok(Json(ListLinksResponse { links: link_infos }))
-}
-
 /// List output ports
 /// GET /api/v1/links/ports/output
 pub async fn list_output_ports(
     State(_state): State<Arc<AppState>>,
 ) -> Result<Json<ListPortsResponse>, ApiError> {
-    let ports = pwlink::list_output_ports()
-        .map_err(|e| ApiError::Internal(format!("Failed to list output ports: {}", e)))?;
-    
+    let ports = tokio::task::spawn_blocking(|| {
+        pwlink::list_output_ports()
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to list output ports: {}", e)))?;
+
     let port_infos: Vec<PortInfo> = ports.iter()
         .map(|p| PortInfo {
             id: p.id,
@@ -98,7 +65,7 @@ pub async fn list_output_ports(
             port_name: p.port_name.clone(),
         })
         .collect();
-    
+
     Ok(Json(ListPortsResponse { ports: port_infos }))
 }
 
@@ -107,9 +74,13 @@ pub async fn list_output_ports(
 pub async fn list_input_ports(
     State(_state): State<Arc<AppState>>,
 ) -> Result<Json<ListPortsResponse>, ApiError> {
-    let ports = pwlink::list_input_ports()
-        .map_err(|e| ApiError::Internal(format!("Failed to list input ports: {}", e)))?;
-    
+    let ports = tokio::task::spawn_blocking(|| {
+        pwlink::list_input_ports()
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to list input ports: {}", e)))?;
+
     let port_infos: Vec<PortInfo> = ports.iter()
         .map(|p| PortInfo {
             id: p.id,
@@ -118,7 +89,7 @@ pub async fn list_input_ports(
             port_name: p.port_name.clone(),
         })
         .collect();
-    
+
     Ok(Json(ListPortsResponse { ports: port_infos }))
 }
 
@@ -131,37 +102,42 @@ pub async fn create_link(
     // Check if it looks like a port ID (all digits)
     let is_output_id = request.output.chars().all(|c| c.is_ascii_digit());
     let is_input_id = request.input.chars().all(|c| c.is_ascii_digit());
-    
-    let result = if is_output_id && is_input_id {
-        // Both are IDs
-        let output_id: u32 = request.output.parse()
-            .map_err(|_| ApiError::BadRequest("Invalid output port ID".to_string()))?;
-        let input_id: u32 = request.input.parse()
-            .map_err(|_| ApiError::BadRequest("Invalid input port ID".to_string()))?;
-        pwlink::create_link_by_id(output_id, input_id)
-    } else {
-        // Use names
-        pwlink::create_link(&request.output, &request.input)
-    };
-    
-    match result {
-        Ok(()) => {
-            // Try to find the link ID
-            let link_id = pwlink::find_link(&request.output, &request.input)
-                .ok()
-                .flatten()
-                .map(|l| l.id);
-            
-            Ok(Json(LinkResponse {
-                status: "ok".to_string(),
-                message: format!("Link created: {} -> {}", request.output, request.input),
-                link_id,
-            }))
+
+    let output = request.output.clone();
+    let input = request.input.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let create_result = if is_output_id && is_input_id {
+            // Both are IDs
+            let output_id: u32 = output.parse().map_err(|_| "Invalid output port ID".to_string())?;
+            let input_id: u32 = input.parse().map_err(|_| "Invalid input port ID".to_string())?;
+            pwlink::create_link_by_id(output_id, input_id)
+        } else {
+            // Use names
+            pwlink::create_link(&output, &input)
+        };
+
+        if let Err(e) = create_result {
+            return Err(format!("Failed to create link: {}", e));
         }
-        Err(e) => {
-            Err(ApiError::Internal(format!("Failed to create link: {}", e)))
-        }
-    }
+
+        // Try to find the link ID
+        let link_id = pwlink::find_link(&output, &input)
+            .ok()
+            .flatten()
+            .map(|l| l.id);
+
+        Ok(link_id)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(e))?;
+
+    Ok(Json(LinkResponse {
+        status: "ok".to_string(),
+        message: format!("Link created: {} -> {}", request.output, request.input),
+        link_id: result,
+    }))
 }
 
 /// Remove a link by ID
@@ -170,9 +146,13 @@ pub async fn remove_link_by_id(
     State(_state): State<Arc<AppState>>,
     Path(id): Path<u32>,
 ) -> Result<Json<LinkResponse>, ApiError> {
-    pwlink::remove_link(id)
-        .map_err(|e| ApiError::Internal(format!("Failed to remove link: {}", e)))?;
-    
+    tokio::task::spawn_blocking(move || {
+        pwlink::remove_link(id)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to remove link: {}", e)))?;
+
     Ok(Json(LinkResponse {
         status: "ok".to_string(),
         message: format!("Link {} removed", id),
@@ -192,9 +172,15 @@ pub async fn remove_link_by_name(
     State(_state): State<Arc<AppState>>,
     Json(request): Json<RemoveLinkByNameRequest>,
 ) -> Result<Json<LinkResponse>, ApiError> {
-    pwlink::remove_link_by_name(&request.output, &request.input)
-        .map_err(|e| ApiError::Internal(format!("Failed to remove link: {}", e)))?;
-    
+    let output = request.output.clone();
+    let input = request.input.clone();
+    tokio::task::spawn_blocking(move || {
+        pwlink::remove_link_by_name(&output, &input)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to remove link: {}", e)))?;
+
     Ok(Json(LinkResponse {
         status: "ok".to_string(),
         message: format!("Link removed: {} -> {}", request.output, request.input),
@@ -221,9 +207,15 @@ pub async fn check_link_exists(
     State(_state): State<Arc<AppState>>,
     axum::extract::Query(query): axum::extract::Query<LinkExistsQuery>,
 ) -> Result<Json<LinkExistsResponse>, ApiError> {
-    let link = pwlink::find_link(&query.output, &query.input)
-        .map_err(|e| ApiError::Internal(format!("Failed to check link: {}", e)))?;
-    
+    let output = query.output.clone();
+    let input = query.input.clone();
+    let link = tokio::task::spawn_blocking(move || {
+        pwlink::find_link(&output, &input)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to check link: {}", e)))?;
+
     Ok(Json(LinkExistsResponse {
         exists: link.is_some(),
         link_id: link.map(|l| l.id),
