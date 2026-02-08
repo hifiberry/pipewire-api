@@ -45,6 +45,14 @@ pub struct LinkInfo {
     pub output_node_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_node_name: Option<String>,
+    pub output_port_name: String,
+    pub input_port_name: String,
+}
+
+/// Response for list links (backward compatible wrapper)
+#[derive(Debug, Clone, Serialize)]
+pub struct ListLinksResponse {
+    pub links: Vec<LinkInfo>,
 }
 
 /// Apply a link rule
@@ -78,7 +86,7 @@ pub async fn apply_link_rule(
 /// List all active PipeWire links
 pub async fn list_links(
     State(_state): State<Arc<AppState>>,
-) -> Result<Json<Vec<LinkInfo>>, ApiError> {
+) -> Result<Json<ListLinksResponse>, ApiError> {
     debug!("Listing all PipeWire links");
 
     // Use pwlink to list all links
@@ -89,19 +97,21 @@ pub async fn list_links(
     .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
     .map_err(|e| ApiError::Internal(format!("Failed to list links: {}", e)))?;
 
-    // Convert pwlink::LinkInfo to our LinkInfo structure
+    // Convert pwlink::PwLink to our LinkInfo structure
     let result: Vec<LinkInfo> = links.into_iter().map(|link| LinkInfo {
         id: link.id,
         output_node_id: 0, // Not available from pwlink
         output_port_id: link.output_port_id,
         input_node_id: 0, // Not available from pwlink
         input_port_id: link.input_port_id,
-        output_node_name: Some(link.output_port_name),
-        input_node_name: Some(link.input_port_name),
+        output_node_name: Some(link.output_port_name.clone()),
+        input_node_name: Some(link.input_port_name.clone()),
+        output_port_name: link.output_port_name,
+        input_port_name: link.input_port_name,
     }).collect();
 
     debug!("Found {} links", result.len());
-    Ok(Json(result))
+    Ok(Json(ListLinksResponse { links: result }))
 }
 
 /// Request to apply multiple link rules
