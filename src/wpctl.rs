@@ -178,8 +178,8 @@ fn get_object_info(id: u32) -> Result<(String, String), String> {
 
 /// Set volume for a specific object by ID
 pub fn set_volume(id: u32, volume: f32) -> Result<f32, String> {
-    // Clamp volume to reasonable range (0.0 to 1.5)
-    let volume = volume.max(0.0).min(1.5);
+    // Clamp volume to reasonable range (0.0 to 2.0)
+    let volume = volume.max(0.0).min(2.0);
     
     let output = Command::new("wpctl")
         .args(["set-volume", &id.to_string(), &format!("{:.2}", volume)])
