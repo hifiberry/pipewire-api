@@ -3,8 +3,8 @@
 //! This module provides link rule management using command-line tools
 //! instead of the native PipeWire API for simplicity and reliability.
 
-use regex::Regex;
 use crate::linker::{LinkRule, LinkType, NodeIdentifier};
+use crate::util::regex_match;
 use crate::pwcli::{self, PwObject};
 use crate::pwlink;
 
@@ -109,15 +109,6 @@ impl LinkInfo {
             output_port_name: link.output_port_name.clone(),
             input_port_name: link.input_port_name.clone(),
         }
-    }
-}
-
-/// Match a string against a regex pattern
-fn regex_match(pattern: &str, text: &str) -> bool {
-    if let Ok(re) = Regex::new(pattern) {
-        re.is_match(text)
-    } else {
-        false
     }
 }
 
@@ -431,14 +422,6 @@ pub fn list_links() -> Result<Vec<LinkInfo>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    #[test]
-    fn test_regex_match() {
-        assert!(regex_match("^test.*", "test123"));
-        assert!(regex_match(".*test$", "mytest"));
-        assert!(regex_match("^effect_output\\.proc$", "effect_output.proc"));
-        assert!(!regex_match("^test$", "test123"));
-    }
     
     #[test]
     fn test_matches_identifier() {
