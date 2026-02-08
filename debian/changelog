@@ -1,3 +1,15 @@
+pipewire-api (2.1.0-1) stable; urgency=medium
+
+  * Wrap all blocking subprocess calls in spawn_blocking for async safety
+  * Add internal object cache for pw-cli ID lookups (avoids repeated subprocess calls)
+  * Extract shared regex_match into util module (dedup linker/link_manager_cli)
+  * Add ParameterValue typed accessors (as_float, as_int, as_bool) and Display impl
+  * Mount links router, fix duplicate route, add CORS layer
+  * Increase volume clamp from 1.5 to 2.0
+  * Add CACHING.md and IMPROVEMENTS.md documentation
+
+ -- HiFiBerry <info@hifiberry.com>  Sun, 08 Feb 2026 12:00:00 +0100
+
 pipewire-api (2.0.9-1) stable; urgency=medium
 
   * Added intelligent auto-save background task for settings
