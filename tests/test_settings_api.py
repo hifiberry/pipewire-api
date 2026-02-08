@@ -37,6 +37,7 @@ def cleanup_settings_file(api_server):
         os.remove(path)
 
 
+@pytest.mark.local_only
 class TestSettingsSaveRestore:
     """Test settings save/restore functionality"""
     
@@ -242,6 +243,7 @@ class TestSettingsSaveRestore:
         assert data["path"].endswith("settings.json")
 
 
+@pytest.mark.local_only
 class TestAutoSave:
     """Test auto-save functionality"""
     
