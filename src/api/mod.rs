@@ -319,7 +319,6 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/defaults/sink", get(volume::get_default_sink))
         .route("/api/v1/defaults/source", get(volume::get_default_source))
         // Links endpoints (via pw-link)
-        .route("/api/v1/links", get(links::list_links))
         .route("/api/v1/links", post(links::create_link))
         .route("/api/v1/links/:id", delete(links::remove_link_by_id))
         .route("/api/v1/links/by-name", delete(links::remove_link_by_name))

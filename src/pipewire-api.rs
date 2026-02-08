@@ -2,6 +2,7 @@ use anyhow::Result;
 use pw_api::{AppState, NodeState};
 use std::sync::Arc;
 use clap::Parser;
+use tower_http::cors::CorsLayer;
 
 #[derive(Parser, Debug)]
 #[command(name = "pipewire-api")]
@@ -119,10 +120,12 @@ async fn main() -> Result<()> {
     
     // Create router with global api and module-specific endpoints
     let app = pw_api::api::create_router(app_state.clone())
+        .merge(pw_api::links::create_router(app_state.clone()))
         .merge(pw_api::speakereq::create_router(speakereq_state.clone()))
         .merge(pw_api::riaa::create_router(riaa_state.clone()))
         .merge(pw_api::settings::create_router(speakereq_state, riaa_state, Some(10)))
-        .merge(pw_api::graph::create_graph_router().with_state(app_state));
+        .merge(pw_api::graph::create_graph_router().with_state(app_state))
+        .layer(CorsLayer::permissive());
 
     // Bind to localhost or all interfaces
     let host = if args.localhost { "127.0.0.1" } else { "0.0.0.0" };
