@@ -200,6 +200,16 @@ def pytest_configure(config):
     )
 
 
+def pytest_collection_modifyitems(config, items):
+    """Auto-skip local_only tests when running in remote mode"""
+    if not IS_REMOTE_MODE:
+        return
+    skip_local = pytest.mark.skip(reason="test requires local server access")
+    for item in items:
+        if "local_only" in item.keywords:
+            item.add_marker(skip_local)
+
+
 @pytest.fixture(scope="session")
 def api_server():
     """
