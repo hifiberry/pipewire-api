@@ -31,7 +31,7 @@ fn classification_to_string(classification: pwcli::NodeTypeClassification) -> St
 fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
     // First check media.class
     let mut classification = pwcli::classify_media_class(obj.media_class());
-    
+
     // If Unknown, check object_type for specific types that don't have media.class
     if classification == pwcli::NodeTypeClassification::Unknown {
         let simplified_type = pwcli::simplify_type(&obj.object_type);
@@ -44,12 +44,12 @@ fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
             _ => pwcli::NodeTypeClassification::Unknown,
         };
     }
-    
+
     // Check for driver nodes (Dummy-Driver, Freewheel-Driver, etc.)
     if classification == pwcli::NodeTypeClassification::Unknown && pwcli::is_driver_node(obj) {
         classification = pwcli::NodeTypeClassification::Driver;
     }
-    
+
     PipeWireObject {
         id: obj.id,
         name: obj.display_name(),
@@ -60,13 +60,17 @@ fn to_api_object(obj: &pwcli::PwObject) -> PipeWireObject {
 
 /// List all PipeWire objects
 pub async fn list_all(State(_state): State<Arc<AppState>>) -> Result<Json<ListResponse>, ApiError> {
-    let objects = pwcli::list_all()
-        .map_err(|e| ApiError::Internal(format!("Failed to list objects: {}", e)))?;
-    
+    let objects = tokio::task::spawn_blocking(|| {
+        pwcli::list_all()
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to list objects: {}", e)))?;
+
     let api_objects: Vec<PipeWireObject> = objects.iter()
         .map(to_api_object)
         .collect();
-    
+
     Ok(Json(ListResponse { objects: api_objects }))
 }
 
@@ -81,9 +85,15 @@ pub async fn get_object_by_id(
     if let Some(obj) = state.get_object_by_id(id) {
         return Ok(Json(to_api_object(&obj)));
     }
-    
+
     // If not in cache, try to get it directly from pw-cli
-    match pwcli::get_object(id) {
+    let result = tokio::task::spawn_blocking(move || {
+        pwcli::get_object(id)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("Task join error: {}", e)))?;
+
+    match result {
         Ok(Some(obj)) => Ok(Json(to_api_object(&obj))),
         Ok(None) => Err(ApiError::NotFound(format!("Object {} not found", id))),
         Err(e) => Err(ApiError::Internal(format!("Failed to get object: {}", e))),

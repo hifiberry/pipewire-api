@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 // Simple cache for node name <-> ID lookups to avoid repeated pw-cli calls
 static NODE_CACHE: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
 
+// Cache for object lookups by ID to avoid repeated pw-cli calls
+static OBJECT_CACHE: OnceLock<Mutex<HashMap<u32, PwObject>>> = OnceLock::new();
+
 /// Classification of PipeWire node types based on media.class
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeTypeClassification {
@@ -284,10 +287,36 @@ pub fn list_links() -> Result<Vec<PwObject>, String> {
     list_objects(Some(TYPE_LINK))
 }
 
-/// Get a specific object by ID
+/// Get a specific object by ID (uses internal cache, refreshes on miss)
 pub fn get_object(id: u32) -> Result<Option<PwObject>, String> {
+    let cache_mutex = OBJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    // Check cache first
+    {
+        let cache = cache_mutex.lock().unwrap();
+        if let Some(obj) = cache.get(&id) {
+            return Ok(Some(obj.clone()));
+        }
+    }
+
+    // Cache miss — refresh from pw-cli and retry
+    refresh_object_cache()?;
+
+    let cache = cache_mutex.lock().unwrap();
+    Ok(cache.get(&id).cloned())
+}
+
+/// Refresh the internal object cache from pw-cli
+pub fn refresh_object_cache() -> Result<(), String> {
     let objects = list_all()?;
-    Ok(objects.into_iter().find(|o| o.id == id))
+    let cache_mutex = OBJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut cache = cache_mutex.lock().unwrap();
+    cache.clear();
+    for obj in objects {
+        cache.insert(obj.id, obj);
+    }
+    tracing::debug!("refresh_object_cache: loaded {} objects into cache", cache.len());
+    Ok(())
 }
 
 /// Find a node by name using cache (refreshes cache on first call or if not found)
