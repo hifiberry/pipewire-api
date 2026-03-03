@@ -1,3 +1,9 @@
+pipewire-api (2.1.1-1) stable; urgency=medium
+
+  * Add nginx include file for PipeWire API proxy (/etc/nginx/hifiberry-api.d/)
+
+ -- HiFiBerry <support@hifiberry.com>  Sat, 28 Feb 2026 12:00:00 +0000
+
 pipewire-api (2.1.0-1) stable; urgency=medium
 
   * Wrap all blocking subprocess calls in spawn_blocking for async safety
