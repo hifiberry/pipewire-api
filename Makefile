@@ -11,7 +11,8 @@ all: api
 
 api:
 	@echo "Building API server..."
-	cargo build --release --bin pipewire-api
+	@mkdir -p .cargo
+	CARGO_HOME=$(CURDIR)/.cargo cargo build --release --bin pipewire-api
 
 clean:
 	@echo "Cleaning Rust build artifacts..."
@@ -96,7 +97,14 @@ install-api: target/release/pipewire-api
 # Debian packaging
 deb:
 	@echo "Building Debian package version $(VERSION)..."
-	dpkg-buildpackage -us -uc -b
+	sbuild \
+		--chroot-mode=unshare \
+		--no-clean-source \
+		--enable-network \
+		$(DIST_ARG) \
+		$(CHROOT_ARG) \
+		--build-dir="$(BUILD_DIR)" \
+		--verbose
 
 deb-clean:
 	@echo "Cleaning Debian build artifacts..."
