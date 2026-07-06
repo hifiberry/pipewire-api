@@ -18,7 +18,7 @@ use crate::parameters::ParameterValue;
 #[derive(Clone)]
 pub struct SettingsState {
     pub speakereq: Arc<NodeState>,
-    pub riaa: Arc<NodeState>,
+    pub input_processor: Arc<NodeState>,
     pub auto_save: Arc<AutoSaveState>,
 }
 
@@ -51,7 +51,7 @@ impl AutoSaveState {
 pub struct Settings {
     pub version: String,
     pub speakereq: Option<crate::speakereq::StatusResponse>,
-    pub riaa: Option<crate::riaa::RiaaConfig>,
+    pub input_processor: Option<crate::input_processor::InputProcessorConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,23 +223,23 @@ pub async fn restore_settings(
         }
     }
     
-    // Restore RIAA settings if present
-    if let Some(riaa_config) = settings.riaa {
-        let mut riaa_params = HashMap::new();
-        
-        riaa_params.insert("riaa:Gain (dB)".to_string(), ParameterValue::Float(riaa_config.gain_db));
-        riaa_params.insert("riaa:Subsonic Filter".to_string(), ParameterValue::Int(riaa_config.subsonic_filter));
-        riaa_params.insert("riaa:RIAA Enable".to_string(), ParameterValue::Bool(riaa_config.riaa_enable));
-        riaa_params.insert("riaa:Declick Enable".to_string(), ParameterValue::Bool(riaa_config.declick_enable));
-        riaa_params.insert("riaa:Spike Threshold (dB)".to_string(), ParameterValue::Float(riaa_config.spike_threshold_db));
-        riaa_params.insert("riaa:Spike Width (ms)".to_string(), ParameterValue::Float(riaa_config.spike_width_ms));
-        riaa_params.insert("riaa:Notch Filter Enable".to_string(), ParameterValue::Bool(riaa_config.notch_filter_enable));
-        riaa_params.insert("riaa:Notch Frequency (Hz)".to_string(), ParameterValue::Float(riaa_config.notch_frequency_hz));
-        riaa_params.insert("riaa:Notch Q Factor".to_string(), ParameterValue::Float(riaa_config.notch_q_factor));
-        
-        if !riaa_params.is_empty() {
-            state.riaa.set_parameters(riaa_params)?;
-            modules_restored.push("riaa".to_string());
+    // Restore input-processor (RIAA) settings if present
+    if let Some(input_processor_config) = settings.input_processor {
+        let mut input_processor_params = HashMap::new();
+
+        input_processor_params.insert("input-processor:Gain (dB)".to_string(), ParameterValue::Float(input_processor_config.gain_db));
+        input_processor_params.insert("input-processor:Subsonic Filter".to_string(), ParameterValue::Int(input_processor_config.subsonic_filter));
+        input_processor_params.insert("input-processor:RIAA Enable".to_string(), ParameterValue::Bool(input_processor_config.riaa_enable));
+        input_processor_params.insert("input-processor:Declick Enable".to_string(), ParameterValue::Bool(input_processor_config.declick_enable));
+        input_processor_params.insert("input-processor:Spike Threshold (dB)".to_string(), ParameterValue::Float(input_processor_config.spike_threshold_db));
+        input_processor_params.insert("input-processor:Spike Width (ms)".to_string(), ParameterValue::Float(input_processor_config.spike_width_ms));
+        input_processor_params.insert("input-processor:Notch Filter Enable".to_string(), ParameterValue::Bool(input_processor_config.notch_filter_enable));
+        input_processor_params.insert("input-processor:Notch Frequency (Hz)".to_string(), ParameterValue::Float(input_processor_config.notch_frequency_hz));
+        input_processor_params.insert("input-processor:Notch Q Factor".to_string(), ParameterValue::Float(input_processor_config.notch_q_factor));
+
+        if !input_processor_params.is_empty() {
+            state.input_processor.set_parameters(input_processor_params)?;
+            modules_restored.push("input_processor".to_string());
         }
     }
     
@@ -263,20 +263,20 @@ async fn get_current_settings_json(state: &SettingsState) -> Result<String, ApiE
         Err(_) => None,
     };
     
-    let riaa_config = match state.riaa.get_params() {
+    let input_processor_config = match state.input_processor.get_params() {
         Ok(_params) => {
-            match crate::riaa::get_config(State(state.riaa.clone())).await {
+            match crate::input_processor::get_config(State(state.input_processor.clone())).await {
                 Ok(Json(config)) => Some(config),
                 Err(_) => None,
             }
         }
         Err(_) => None,
     };
-    
+
     let settings = Settings {
         version: env!("CARGO_PKG_VERSION").to_string(),
         speakereq: speakereq_status,
-        riaa: riaa_config,
+        input_processor: input_processor_config,
     };
     
     serde_json::to_string_pretty(&settings)
@@ -328,7 +328,7 @@ pub async fn auto_save_task(state: SettingsState) {
 /// Create the settings router with both module states and start auto-save task
 pub fn create_router(
     speakereq_state: Arc<NodeState>,
-    riaa_state: Arc<NodeState>,
+    input_processor_state: Arc<NodeState>,
     auto_save_interval_secs: Option<u64>,
 ) -> Router {
     // Initialize auto-save state with existing file content if available
@@ -341,7 +341,7 @@ pub fn create_router(
     
     let settings_state = SettingsState {
         speakereq: speakereq_state,
-        riaa: riaa_state,
+        input_processor: input_processor_state,
         auto_save,
     };
     
@@ -387,7 +387,7 @@ mod tests {
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
         
         let json = serde_json::to_string(&settings).unwrap();
@@ -395,7 +395,7 @@ mod tests {
         
         assert_eq!(deserialized.version, "2.0.9");
         assert!(deserialized.speakereq.is_none());
-        assert!(deserialized.riaa.is_none());
+        assert!(deserialized.input_processor.is_none());
     }
 
     #[test]
@@ -437,7 +437,7 @@ mod tests {
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: Some(speakereq_status),
-            riaa: None,
+            input_processor: None,
         };
         
         let json = serde_json::to_string_pretty(&settings).unwrap();
@@ -462,7 +462,7 @@ mod tests {
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
         
         let path = get_settings_path().unwrap();
@@ -492,14 +492,14 @@ mod tests {
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
         
         let json = serde_json::to_string_pretty(&settings).unwrap();
         
         assert!(json.contains("\"version\""));
         assert!(json.contains("\"speakereq\""));
-        assert!(json.contains("\"riaa\""));
+        assert!(json.contains("\"input_processor\""));
         assert!(json.contains("2.0.9"));
     }
 
@@ -525,7 +525,7 @@ mod tests {
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: Some(speakereq_status),
-            riaa: None,
+            input_processor: None,
         };
         
         let json = serde_json::to_string(&settings).unwrap();
@@ -539,10 +539,10 @@ mod tests {
     }
     
     #[test]
-    fn test_riaa_settings_serialization() {
-        use crate::riaa::RiaaConfig;
-        
-        let riaa_config = RiaaConfig {
+    fn test_input_processor_settings_serialization() {
+        use crate::input_processor::InputProcessorConfig;
+
+        let input_processor_config = InputProcessorConfig {
             gain_db: 6.0,
             subsonic_filter: 1,
             riaa_enable: true,
@@ -553,26 +553,26 @@ mod tests {
             notch_frequency_hz: 60.0,
             notch_q_factor: 20.0,
         };
-        
+
         let settings = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: Some(riaa_config),
+            input_processor: Some(input_processor_config),
         };
-        
+
         let json = serde_json::to_string_pretty(&settings).unwrap();
         let deserialized: Settings = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.version, "2.0.9");
-        assert!(deserialized.riaa.is_some());
-        
-        let riaa = deserialized.riaa.unwrap();
-        assert_eq!(riaa.gain_db, 6.0);
-        assert_eq!(riaa.subsonic_filter, 1);
-        assert_eq!(riaa.riaa_enable, true);
-        assert_eq!(riaa.declick_enable, true);
-        assert_eq!(riaa.notch_filter_enable, true);
-        assert_eq!(riaa.notch_frequency_hz, 60.0);
+        assert!(deserialized.input_processor.is_some());
+
+        let input_processor = deserialized.input_processor.unwrap();
+        assert_eq!(input_processor.gain_db, 6.0);
+        assert_eq!(input_processor.subsonic_filter, 1);
+        assert_eq!(input_processor.riaa_enable, true);
+        assert_eq!(input_processor.declick_enable, true);
+        assert_eq!(input_processor.notch_filter_enable, true);
+        assert_eq!(input_processor.notch_frequency_hz, 60.0);
     }
 
     #[test]
@@ -620,13 +620,13 @@ mod tests {
         let settings1 = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
         
         let settings2 = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
         
         let json1 = serde_json::to_string_pretty(&settings1).unwrap();
@@ -637,19 +637,19 @@ mod tests {
 
     #[test]
     fn test_settings_json_detects_changes() {
-        use crate::riaa::RiaaConfig;
-        
+        use crate::input_processor::InputProcessorConfig;
+
         // Test that different settings produce different JSON
         let settings1 = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: None,
+            input_processor: None,
         };
-        
+
         let settings2 = Settings {
             version: "2.0.9".to_string(),
             speakereq: None,
-            riaa: Some(RiaaConfig {
+            input_processor: Some(InputProcessorConfig {
                 gain_db: 5.0,
                 subsonic_filter: 1,
                 riaa_enable: true,

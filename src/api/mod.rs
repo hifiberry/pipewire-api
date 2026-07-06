@@ -237,46 +237,46 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
                 methods: vec!["PUT"],
                 description: "Set single crossbar value",
             },
-            // RIAA module endpoints
+            // Input Processor module endpoints
             EndpointInfo {
-                path: "/api/module/riaa/config",
+                path: "/api/module/input-processor/config",
                 methods: vec!["GET"],
-                description: "Get all RIAA settings",
+                description: "Get all input processor settings",
             },
             EndpointInfo {
-                path: "/api/module/riaa/gain",
+                path: "/api/module/input-processor/gain",
                 methods: vec!["GET", "PUT"],
-                description: "Get/set RIAA gain",
+                description: "Get/set input processor gain",
             },
             EndpointInfo {
-                path: "/api/module/riaa/subsonic",
+                path: "/api/module/input-processor/subsonic",
                 methods: vec!["GET", "PUT"],
                 description: "Get/set subsonic filter",
             },
             EndpointInfo {
-                path: "/api/module/riaa/riaa-enable",
+                path: "/api/module/input-processor/riaa-enable",
                 methods: vec!["GET", "PUT"],
                 description: "Enable/disable RIAA equalization",
             },
             EndpointInfo {
-                path: "/api/module/riaa/declick",
+                path: "/api/module/input-processor/declick",
                 methods: vec!["GET", "PUT"],
                 description: "Enable/disable declicker",
             },
             EndpointInfo {
-                path: "/api/module/riaa/spike",
+                path: "/api/module/input-processor/spike",
                 methods: vec!["GET", "PUT"],
                 description: "Get/set spike detection config",
             },
             EndpointInfo {
-                path: "/api/module/riaa/notch",
+                path: "/api/module/input-processor/notch",
                 methods: vec!["GET", "PUT"],
                 description: "Get/set notch filter config",
             },
             EndpointInfo {
-                path: "/api/module/riaa/set-default",
+                path: "/api/module/input-processor/set-default",
                 methods: vec!["PUT"],
-                description: "Reset RIAA to defaults",
+                description: "Reset input processor to defaults",
             },
             // Graph endpoints
             EndpointInfo {
