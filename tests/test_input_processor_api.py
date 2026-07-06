@@ -23,7 +23,7 @@ def find_input_processor_node(base_url):
 
 
 def test_find_input_processor_node(api_server):
-    """Test that we can find the RIAA node."""
+    """Test that we can find the input-processor node."""
     node_id = find_input_processor_node(api_server)
     assert node_id is not None
     assert isinstance(node_id, int)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Integration tests for the Settings Save/Restore API.
-Tests the ability to save and restore settings for speakereq and riaa modules.
+Tests the ability to save and restore settings for speakereq and input-processor modules.
 """
 
 import pytest
@@ -68,7 +68,7 @@ class TestSettingsSaveRestore:
         assert "version" in settings
         assert len(settings["version"].split(".")) >= 2  # valid semver-like string
         assert "speakereq" in settings
-        assert "riaa" in settings
+        assert "input_processor" in settings
     
     def test_save_includes_speakereq_settings(self, api_server):
         """Test that saved settings include speakereq module configuration"""
@@ -95,28 +95,28 @@ class TestSettingsSaveRestore:
         assert "outputs" in speakereq
     
     def test_save_includes_riaa_settings(self, api_server):
-        """Test that saved settings include riaa module configuration"""
-        # Check if riaa module is available
-        config_response = requests.get(f"{api_server}/api/v1/module/riaa/config")
+        """Test that saved settings include input-processor module configuration"""
+        # Check if input-processor module is available
+        config_response = requests.get(f"{api_server}/api/v1/module/input-processor/config")
         if config_response.status_code != 200:
-            pytest.skip("RIAA module not available")
-        
+            pytest.skip("Input-processor module not available")
+
         # Save settings
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
         settings_file_path = response.json()["path"]
-        
+
         # Verify saved content
         with open(settings_file_path, 'r') as f:
             settings = json.load(f)
-        
-        # Verify riaa data is present
-        assert settings.get("riaa") is not None, "RIAA settings should be saved"
-        riaa = settings["riaa"]
-        assert "gain_db" in riaa
-        assert "riaa_enable" in riaa
-        assert "declick_enable" in riaa
-        assert "subsonic_filter" in riaa
+
+        # Verify input-processor data is present
+        assert settings.get("input_processor") is not None, "Input-processor settings should be saved"
+        input_processor = settings["input_processor"]
+        assert "gain_db" in input_processor
+        assert "riaa_enable" in input_processor
+        assert "declick_enable" in input_processor
+        assert "subsonic_filter" in input_processor
     
     def test_restore_without_file_returns_success(self, api_server):
         """Test that restore returns success even when no settings file exists"""
@@ -216,19 +216,19 @@ class TestSettingsSaveRestore:
         assert os.path.isdir(settings_dir)
     
     def test_concurrent_module_settings(self, api_server):
-        """Test that both speakereq and riaa settings can be saved together"""
+        """Test that both speakereq and input-processor settings can be saved together"""
         # Save
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
         settings_file_path = response.json()["path"]
-        
+
         # Verify both modules are in the file (or at least the structure is there)
         with open(settings_file_path, 'r') as f:
             settings = json.load(f)
-        
+
         # Should have both keys present (may be None if modules not configured)
         assert "speakereq" in settings
-        assert "riaa" in settings
+        assert "input_processor" in settings
     
     def test_save_response_format(self, api_server):
         """Test that save response has the expected format"""
