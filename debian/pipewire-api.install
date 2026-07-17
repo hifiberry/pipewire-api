@@ -5,3 +5,4 @@ link-rules.conf etc/pipewire-api/
 volume.conf etc/pipewire-api/
 param-rules.conf etc/pipewire-api/
 debian/hifiberry-pipewire.nginx etc/nginx/hifiberry-api.d/
+auth/pipewire.json etc/hifiberry/auth.d/
