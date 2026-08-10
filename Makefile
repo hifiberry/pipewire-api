@@ -96,7 +96,6 @@ install-api: target/release/pipewire-api
 
 # Debian packaging
 deb:
-	BUILD_DIR="/tmp/pipewire-api-build"; \
 	if [ -n "$$DIST" ]; then \
 		echo "Using distribution from DIST environment variable: $$DIST"; \
 		DIST_ARG="--dist=$$DIST"; \
@@ -112,7 +111,6 @@ deb:
 		--enable-network \
 		$$DIST_ARG \
 		$$CHROOT_ARG \
-		--build-dir="$$BUILD_DIR" \
 		--verbose
 
 deb-clean:
