@@ -61,7 +61,7 @@ fn is_audio_node(obj: &pwcli::PwObject) -> bool {
         // Include known audio nodes
         if name_lower.contains("alsa")
             || name_lower.contains("speakereq")
-            || name_lower.contains("riaa")
+            || name_lower.contains("input-processor")
             || name_lower.contains("output")
             || name_lower.contains("input")
             || name_lower.contains("sink")

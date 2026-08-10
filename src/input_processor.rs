@@ -10,7 +10,7 @@ use crate::parameters::ParameterValue;
 
 // API Models
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RiaaConfig {
+pub struct InputProcessorConfig {
     pub gain_db: f32,
     pub subsonic_filter: i32,
     pub riaa_enable: bool,
@@ -51,73 +51,73 @@ pub struct NotchConfig {
 }
 
 // Handlers
-pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<RiaaConfig>, ApiError> {
+pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<InputProcessorConfig>, ApiError> {
     let params = state.get_params()?;
     
-    let gain_db = params.get("riaa:Gain (dB)")
+    let gain_db = params.get("input-processor:Gain (dB)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(0.0);
     
-    let subsonic_filter = params.get("riaa:Subsonic Filter")
+    let subsonic_filter = params.get("input-processor:Subsonic Filter")
         .and_then(|v| match v {
             ParameterValue::Int(i) => Some(*i),
             _ => None,
         })
         .unwrap_or(0);
     
-    let riaa_enable = params.get("riaa:RIAA Enable")
+    let riaa_enable = params.get("input-processor:RIAA Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
         })
         .unwrap_or(true);
     
-    let declick_enable = params.get("riaa:Declick Enable")
+    let declick_enable = params.get("input-processor:Declick Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
         })
         .unwrap_or(false);
     
-    let spike_threshold_db = params.get("riaa:Spike Threshold (dB)")
+    let spike_threshold_db = params.get("input-processor:Spike Threshold (dB)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(20.0);
     
-    let spike_width_ms = params.get("riaa:Spike Width (ms)")
+    let spike_width_ms = params.get("input-processor:Spike Width (ms)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(1.0);
     
-    let notch_filter_enable = params.get("riaa:Notch Filter Enable")
+    let notch_filter_enable = params.get("input-processor:Notch Filter Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
         })
         .unwrap_or(false);
     
-    let notch_frequency_hz = params.get("riaa:Notch Frequency (Hz)")
+    let notch_frequency_hz = params.get("input-processor:Notch Frequency (Hz)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(250.0);
     
-    let notch_q_factor = params.get("riaa:Notch Q Factor")
+    let notch_q_factor = params.get("input-processor:Notch Q Factor")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(25.0);
     
-    Ok(Json(RiaaConfig {
+    Ok(Json(InputProcessorConfig {
         gain_db,
         subsonic_filter,
         riaa_enable,
@@ -133,7 +133,7 @@ pub async fn get_config(State(state): State<Arc<NodeState>>) -> Result<Json<Riaa
 pub async fn get_gain(State(state): State<Arc<NodeState>>) -> Result<Json<GainValue>, ApiError> {
     let params = state.get_params()?;
     
-    let gain_db = params.get("riaa:Gain (dB)")
+    let gain_db = params.get("input-processor:Gain (dB)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
@@ -147,7 +147,7 @@ pub async fn set_gain(
     State(state): State<Arc<NodeState>>,
     Json(gain_value): Json<GainValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.set_parameter("riaa:Gain (dB)", ParameterValue::Float(gain_value.gain_db))?;
+    state.set_parameter("input-processor:Gain (dB)", ParameterValue::Float(gain_value.gain_db))?;
     
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -158,7 +158,7 @@ pub async fn set_gain(
 pub async fn get_subsonic_filter(State(state): State<Arc<NodeState>>) -> Result<Json<SubsonicFilterValue>, ApiError> {
     let params = state.get_params()?;
     
-    let filter = params.get("riaa:Subsonic Filter")
+    let filter = params.get("input-processor:Subsonic Filter")
         .and_then(|v| match v {
             ParameterValue::Int(i) => Some(*i),
             _ => None,
@@ -172,7 +172,7 @@ pub async fn set_subsonic_filter(
     State(state): State<Arc<NodeState>>,
     Json(filter_value): Json<SubsonicFilterValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.set_parameter("riaa:Subsonic Filter", ParameterValue::Int(filter_value.filter))?;
+    state.set_parameter("input-processor:Subsonic Filter", ParameterValue::Int(filter_value.filter))?;
     
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -183,7 +183,7 @@ pub async fn set_subsonic_filter(
 pub async fn get_riaa_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
     
-    let enabled = params.get("riaa:RIAA Enable")
+    let enabled = params.get("input-processor:RIAA Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
@@ -197,7 +197,7 @@ pub async fn set_riaa_enable(
     State(state): State<Arc<NodeState>>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.set_parameter("riaa:RIAA Enable", ParameterValue::Bool(enable_value.enabled))?;
+    state.set_parameter("input-processor:RIAA Enable", ParameterValue::Bool(enable_value.enabled))?;
     
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -208,7 +208,7 @@ pub async fn set_riaa_enable(
 pub async fn get_declick_enable(State(state): State<Arc<NodeState>>) -> Result<Json<EnableValue>, ApiError> {
     let params = state.get_params()?;
     
-    let enabled = params.get("riaa:Declick Enable")
+    let enabled = params.get("input-processor:Declick Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
@@ -222,7 +222,7 @@ pub async fn set_declick_enable(
     State(state): State<Arc<NodeState>>,
     Json(enable_value): Json<EnableValue>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.set_parameter("riaa:Declick Enable", ParameterValue::Bool(enable_value.enabled))?;
+    state.set_parameter("input-processor:Declick Enable", ParameterValue::Bool(enable_value.enabled))?;
     
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -233,14 +233,14 @@ pub async fn set_declick_enable(
 pub async fn get_spike_config(State(state): State<Arc<NodeState>>) -> Result<Json<SpikeConfig>, ApiError> {
     let params = state.get_params()?;
     
-    let threshold_db = params.get("riaa:Spike Threshold (dB)")
+    let threshold_db = params.get("input-processor:Spike Threshold (dB)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(20.0);
     
-    let width_ms = params.get("riaa:Spike Width (ms)")
+    let width_ms = params.get("input-processor:Spike Width (ms)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
@@ -260,8 +260,8 @@ pub async fn set_spike_config(
     use std::collections::HashMap;
     let mut params = HashMap::new();
     
-    params.insert("riaa:Spike Threshold (dB)".to_string(), ParameterValue::Float(spike_config.threshold_db));
-    params.insert("riaa:Spike Width (ms)".to_string(), ParameterValue::Float(spike_config.width_ms));
+    params.insert("input-processor:Spike Threshold (dB)".to_string(), ParameterValue::Float(spike_config.threshold_db));
+    params.insert("input-processor:Spike Width (ms)".to_string(), ParameterValue::Float(spike_config.width_ms));
     
     state.set_parameters(params)?;
     
@@ -275,21 +275,21 @@ pub async fn set_spike_config(
 pub async fn get_notch_config(State(state): State<Arc<NodeState>>) -> Result<Json<NotchConfig>, ApiError> {
     let params = state.get_params()?;
     
-    let enabled = params.get("riaa:Notch Filter Enable")
+    let enabled = params.get("input-processor:Notch Filter Enable")
         .and_then(|v| match v {
             ParameterValue::Bool(b) => Some(*b),
             _ => None,
         })
         .unwrap_or(false);
     
-    let frequency_hz = params.get("riaa:Notch Frequency (Hz)")
+    let frequency_hz = params.get("input-processor:Notch Frequency (Hz)")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
         })
         .unwrap_or(250.0);
     
-    let q_factor = params.get("riaa:Notch Q Factor")
+    let q_factor = params.get("input-processor:Notch Q Factor")
         .and_then(|v| match v {
             ParameterValue::Float(f) => Some(*f),
             _ => None,
@@ -310,9 +310,9 @@ pub async fn set_notch_config(
     use std::collections::HashMap;
     let mut params = HashMap::new();
     
-    params.insert("riaa:Notch Filter Enable".to_string(), ParameterValue::Bool(notch_config.enabled));
-    params.insert("riaa:Notch Frequency (Hz)".to_string(), ParameterValue::Float(notch_config.frequency_hz));
-    params.insert("riaa:Notch Q Factor".to_string(), ParameterValue::Float(notch_config.q_factor));
+    params.insert("input-processor:Notch Filter Enable".to_string(), ParameterValue::Bool(notch_config.enabled));
+    params.insert("input-processor:Notch Frequency (Hz)".to_string(), ParameterValue::Float(notch_config.frequency_hz));
+    params.insert("input-processor:Notch Q Factor".to_string(), ParameterValue::Float(notch_config.q_factor));
     
     state.set_parameters(params)?;
     
@@ -329,10 +329,10 @@ pub async fn set_default(State(state): State<Arc<NodeState>>) -> Result<Json<ser
     let mut params = HashMap::new();
     
     // Set defaults: 0dB gain, no subsonic filter, no declick, no RIAA enabled
-    params.insert("riaa:Gain (dB)".to_string(), ParameterValue::Float(0.0));
-    params.insert("riaa:Subsonic Filter".to_string(), ParameterValue::Int(0));
-    params.insert("riaa:RIAA Enable".to_string(), ParameterValue::Bool(false));
-    params.insert("riaa:Declick Enable".to_string(), ParameterValue::Bool(false));
+    params.insert("input-processor:Gain (dB)".to_string(), ParameterValue::Float(0.0));
+    params.insert("input-processor:Subsonic Filter".to_string(), ParameterValue::Int(0));
+    params.insert("input-processor:RIAA Enable".to_string(), ParameterValue::Bool(false));
+    params.insert("input-processor:Declick Enable".to_string(), ParameterValue::Bool(false));
     
     state.set_parameters(params)?;
     
@@ -350,7 +350,7 @@ pub async fn save_config(State(state): State<Arc<NodeState>>) -> Result<Json<ser
     
     // Set "Store settings" to 1 to trigger the plugin to save
     let mut params = HashMap::new();
-    params.insert("riaa:Store settings".to_string(), ParameterValue::Int(1));
+    params.insert("input-processor:Store settings".to_string(), ParameterValue::Int(1));
     
     state.set_parameters(params)?;
     
@@ -360,17 +360,17 @@ pub async fn save_config(State(state): State<Arc<NodeState>>) -> Result<Json<ser
     })))
 }
 
-// Create router for RIAA endpoints
+// Create router for input-processor endpoints
 pub fn create_router(state: Arc<NodeState>) -> Router {
     Router::new()
-        .route("/api/v1/module/riaa/config", get(get_config))
-        .route("/api/v1/module/riaa/gain", get(get_gain).put(set_gain))
-        .route("/api/v1/module/riaa/subsonic", get(get_subsonic_filter).put(set_subsonic_filter))
-        .route("/api/v1/module/riaa/riaa-enable", get(get_riaa_enable).put(set_riaa_enable))
-        .route("/api/v1/module/riaa/declick", get(get_declick_enable).put(set_declick_enable))
-        .route("/api/v1/module/riaa/spike", get(get_spike_config).put(set_spike_config))
-        .route("/api/v1/module/riaa/notch", get(get_notch_config).put(set_notch_config))
-        .route("/api/v1/module/riaa/set-default", put(set_default))
-        .route("/api/v1/module/riaa/save", post(save_config))
+        .route("/api/v1/module/input-processor/config", get(get_config))
+        .route("/api/v1/module/input-processor/gain", get(get_gain).put(set_gain))
+        .route("/api/v1/module/input-processor/subsonic", get(get_subsonic_filter).put(set_subsonic_filter))
+        .route("/api/v1/module/input-processor/riaa-enable", get(get_riaa_enable).put(set_riaa_enable))
+        .route("/api/v1/module/input-processor/declick", get(get_declick_enable).put(set_declick_enable))
+        .route("/api/v1/module/input-processor/spike", get(get_spike_config).put(set_spike_config))
+        .route("/api/v1/module/input-processor/notch", get(get_notch_config).put(set_notch_config))
+        .route("/api/v1/module/input-processor/set-default", put(set_default))
+        .route("/api/v1/module/input-processor/save", post(save_config))
         .with_state(state)
 }

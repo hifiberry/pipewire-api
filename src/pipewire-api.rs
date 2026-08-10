@@ -116,14 +116,14 @@ async fn main() -> Result<()> {
         "speakereq".to_string(),
         r"speakereq[0-9]+x[0-9]+".to_string()
     ));
-    let riaa_state = Arc::new(NodeState::new("riaa".to_string()));
-    
+    let input_processor_state = Arc::new(NodeState::new("input-processor".to_string()));
+
     // Create router with global api and module-specific endpoints
     let app = pw_api::api::create_router(app_state.clone())
         .merge(pw_api::links::create_router(app_state.clone()))
         .merge(pw_api::speakereq::create_router(speakereq_state.clone()))
-        .merge(pw_api::riaa::create_router(riaa_state.clone()))
-        .merge(pw_api::settings::create_router(speakereq_state, riaa_state, Some(10)))
+        .merge(pw_api::input_processor::create_router(input_processor_state.clone()))
+        .merge(pw_api::settings::create_router(speakereq_state, input_processor_state, Some(10)))
         .merge(pw_api::graph::create_graph_router().with_state(app_state))
         .layer(CorsLayer::permissive());
 

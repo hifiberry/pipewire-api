@@ -1,0 +1,3 @@
+{ "service":"pipewire", "match_prefix":"/api/pipewire", "default_tier":"ok",
+  "comment":"PipeWire is pure audio/DSP: speaker EQ, input-processor (phono/RIAA), routing, volume, graph. All of it is everyday sound tuning, none of it touches system security, so it is OK-tier by default and never prompts for a password.",
+  "rules":[] }
