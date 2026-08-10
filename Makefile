@@ -96,7 +96,7 @@ install-api: target/release/pipewire-api
 
 # Debian packaging
 deb:
-	BUILD_DIR="/tmp/input-processor-build"; \
+	BUILD_DIR="/tmp/pipewire-api-build"; \
 	if [ -n "$$DIST" ]; then \
 		echo "Using distribution from DIST environment variable: $$DIST"; \
 		DIST_ARG="--dist=$$DIST"; \
