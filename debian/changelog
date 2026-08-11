@@ -1,4 +1,4 @@
-pipewire-api (2.1.4-1) stable; urgency=medium
+pipewire-api (2.2.0-1) stable; urgency=medium
 
   * Apply the saved module settings when the service starts. Settings were
     written to ~/.state/pipewire-api/settings.json every few seconds but never
