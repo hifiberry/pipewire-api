@@ -190,7 +190,12 @@ pub async fn list_endpoints() -> Json<EndpointListResponse> {
             EndpointInfo {
                 path: "/api/v1/settings/restore",
                 methods: vec!["POST"],
-                description: "Restore settings from ~/.state/pipewire-api/settings.json",
+                description: "Restore settings from ~/.state/pipewire-api/settings.json (also done automatically at startup)",
+            },
+            EndpointInfo {
+                path: "/api/v1/settings/reset",
+                methods: vec!["POST"],
+                description: "Reset all modules to defaults and delete the saved settings",
             },
             EndpointInfo {
                 path: "/api/module/speakereq/eq/:block/:band",

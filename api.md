@@ -102,6 +102,18 @@ Note: The server binds to all interfaces (0.0.0.0) by default. Use `--localhost`
 | `/api/v1/module/riaa/refresh` | POST | Refresh parameter cache |
 | `/api/v1/module/riaa/default` | POST | Reset to defaults |
 
+### Settings Endpoints (`/api/v1/settings`)
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/api/v1/settings/save` | POST | Save current settings to `~/.state/pipewire-api/settings.json` |
+| `/api/v1/settings/restore` | POST | Apply the saved settings |
+| `/api/v1/settings/reset` | POST | Reset all modules to defaults and delete the saved settings |
+
+Module settings are saved automatically a few seconds after they change, and
+applied again when the service starts, so they survive a reboot. The startup
+restore waits for the filter chain to appear, and auto-save stays idle until it
+has run - otherwise the boot-time defaults would overwrite the saved values.
+
 ## Getting Started
 
 ### List All Endpoints
