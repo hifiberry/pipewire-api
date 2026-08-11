@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration};
-use tracing::info;
+use tokio::time::{interval, sleep, Duration};
+use tracing::{info, warn};
 use crate::api_server::{ApiError, NodeState};
 use crate::parameters::ParameterValue;
 
@@ -26,6 +27,10 @@ pub struct SettingsState {
 pub struct AutoSaveState {
     pub last_saved: RwLock<Option<String>>,
     pub interval_secs: u64,
+    /// Set once the startup restore has run (or given up). The auto-save task
+    /// must not write before that, or it would overwrite the saved settings
+    /// with the defaults the modules come up with at boot.
+    pub restore_done: AtomicBool,
 }
 
 impl AutoSaveState {
@@ -33,15 +38,17 @@ impl AutoSaveState {
         Self {
             last_saved: RwLock::new(None),
             interval_secs,
+            restore_done: AtomicBool::new(false),
         }
     }
-    
+
     /// Initialize with existing file content if available
     pub fn new_with_file(interval_secs: u64, file_path: &PathBuf) -> Self {
         let initial_content = fs::read_to_string(file_path).ok();
         Self {
             last_saved: RwLock::new(initial_content),
             interval_secs,
+            restore_done: AtomicBool::new(false),
         }
     }
 }
@@ -66,6 +73,14 @@ pub struct RestoreResponse {
     pub success: bool,
     pub message: String,
     pub modules_restored: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResetResponse {
+    pub success: bool,
+    pub message: String,
+    pub modules_reset: Vec<String>,
+    pub settings_removed: bool,
 }
 
 /// Get the settings file path
@@ -115,8 +130,71 @@ pub async fn save_settings(
 pub async fn restore_settings(
     State(state): State<SettingsState>,
 ) -> Result<Json<RestoreResponse>, ApiError> {
+    let modules_restored = apply_saved_settings(&state).await?;
+
+    Ok(Json(RestoreResponse {
+        success: true,
+        message: format!("Restored {} modules", modules_restored.len()),
+        modules_restored,
+    }))
+}
+
+/// Reset all modules to their defaults and discard the saved settings.
+///
+/// Used by the factory reset in the configuration server, so that a reset also
+/// clears what this service persists across reboots.
+pub async fn reset_settings(
+    State(state): State<SettingsState>,
+) -> Result<Json<ResetResponse>, ApiError> {
+    let mut modules_reset = Vec::new();
+    let mut errors = Vec::new();
+
+    // Defaults are applied per module, best effort: a module whose PipeWire
+    // node is absent on this device must not fail the whole reset.
+    match crate::speakereq::set_default(State(state.speakereq.clone())).await {
+        Ok(_) => modules_reset.push("speakereq".to_string()),
+        Err(e) => errors.push(format!("speakereq: {:?}", e)),
+    }
+    match crate::input_processor::set_default(State(state.input_processor.clone())).await {
+        Ok(_) => modules_reset.push("input_processor".to_string()),
+        Err(e) => errors.push(format!("input_processor: {:?}", e)),
+    }
+
+    // Drop the stored settings so a restore cannot bring the old values back
     let path = get_settings_path()?;
-    
+    let mut settings_removed = false;
+    if path.exists() {
+        fs::remove_file(&path)
+            .map_err(|e| ApiError::Internal(format!("Failed to remove settings file: {}", e)))?;
+        settings_removed = true;
+    }
+    *state.auto_save.last_saved.write().await = None;
+
+    // Nothing left to restore, so let auto-save resume with the defaults
+    state.auto_save.restore_done.store(true, Ordering::SeqCst);
+
+    info!("Settings reset: {} module(s) reset to defaults, settings file removed: {}",
+        modules_reset.len(), settings_removed);
+    if !errors.is_empty() {
+        warn!("Settings reset: {}", errors.join("; "));
+    }
+
+    Ok(Json(ResetResponse {
+        success: true,
+        message: format!("Reset {} module(s) to defaults", modules_reset.len()),
+        modules_reset,
+        settings_removed,
+    }))
+}
+
+/// Apply the settings stored on disk to the running modules.
+///
+/// Returns the names of the modules that were restored. Fails with
+/// `ApiError::NotFound` when there is no settings file, and with whatever
+/// error the module state reports when the PipeWire node is not (yet) there.
+pub async fn apply_saved_settings(state: &SettingsState) -> Result<Vec<String>, ApiError> {
+    let path = get_settings_path()?;
+
     if !path.exists() {
         return Err(ApiError::NotFound("No saved settings found".to_string()));
     }
@@ -243,11 +321,53 @@ pub async fn restore_settings(
         }
     }
     
-    Ok(Json(RestoreResponse {
-        success: true,
-        message: format!("Restored {} modules", modules_restored.len()),
-        modules_restored,
-    }))
+    Ok(modules_restored)
+}
+
+/// Background task that applies the saved settings once at startup.
+///
+/// The modules come up with their compiled-in defaults, and the PipeWire node
+/// backing them may not exist yet when the API server starts (the filter chain
+/// is a separate service), so retry until it shows up. The auto-save task stays
+/// parked until this has finished either way.
+pub async fn startup_restore_task(state: SettingsState) {
+    const RETRY_INTERVAL: Duration = Duration::from_secs(2);
+    const MAX_ATTEMPTS: u32 = 60; // ~2 minutes
+
+    let path = match get_settings_path() {
+        Ok(path) => path,
+        Err(e) => {
+            warn!("Startup restore: cannot determine settings path: {:?}", e);
+            state.auto_save.restore_done.store(true, Ordering::SeqCst);
+            return;
+        }
+    };
+
+    if !path.exists() {
+        info!("Startup restore: no saved settings at {}, nothing to restore", path.display());
+        state.auto_save.restore_done.store(true, Ordering::SeqCst);
+        return;
+    }
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        match apply_saved_settings(&state).await {
+            Ok(modules) => {
+                info!("Startup restore: restored {} module(s) from {}: {}",
+                    modules.len(), path.display(), modules.join(", "));
+                break;
+            }
+            Err(e) => {
+                if attempt == MAX_ATTEMPTS {
+                    warn!("Startup restore: giving up after {} attempts: {:?}", attempt, e);
+                } else {
+                    tracing::debug!("Startup restore: attempt {} failed ({:?}), retrying", attempt, e);
+                    sleep(RETRY_INTERVAL).await;
+                }
+            }
+        }
+    }
+
+    state.auto_save.restore_done.store(true, Ordering::SeqCst);
 }
 
 /// Get current settings as JSON string (for comparison)
@@ -283,13 +403,43 @@ async fn get_current_settings_json(state: &SettingsState) -> Result<String, ApiE
         .map_err(|e| ApiError::Internal(format!("Failed to serialize settings: {}", e)))
 }
 
+/// Would writing `current` over `prev` drop a module we already have data for?
+///
+/// A module serializes to `null` whenever its PipeWire node is missing - during
+/// boot, or while the filter chain restarts. Saving that would throw away the
+/// stored settings for good, so such a snapshot is skipped.
+fn drops_module_data(prev: &str, current: &str) -> bool {
+    // Compared as generic JSON so this keeps working when a module's schema
+    // changes, and so a settings file written by an older version still counts.
+    let (prev, current) = match (
+        serde_json::from_str::<serde_json::Value>(prev),
+        serde_json::from_str::<serde_json::Value>(current),
+    ) {
+        (Ok(prev), Ok(current)) => (prev, current),
+        // Unparsable previous content is not worth protecting.
+        _ => return false,
+    };
+
+    ["speakereq", "input_processor"].iter().any(|module| {
+        let had_data = prev.get(module).map_or(false, |v| !v.is_null());
+        let lost_data = current.get(module).map_or(true, |v| v.is_null());
+        had_data && lost_data
+    })
+}
+
 /// Background task that auto-saves settings when they change
 pub async fn auto_save_task(state: SettingsState) {
     let mut interval = interval(Duration::from_secs(state.auto_save.interval_secs));
-    
+
     loop {
         interval.tick().await;
-        
+
+        // Don't touch the file before the saved settings have been applied -
+        // otherwise the boot-time defaults would overwrite them.
+        if !state.auto_save.restore_done.load(Ordering::SeqCst) {
+            continue;
+        }
+
         // Get current settings as JSON
         let current_json = match get_current_settings_json(&state).await {
             Ok(json) => json,
@@ -298,9 +448,15 @@ pub async fn auto_save_task(state: SettingsState) {
                 continue;
             }
         };
-        
+
         // Check if settings have changed
         let mut last_saved = state.auto_save.last_saved.write().await;
+        if let Some(prev) = &*last_saved {
+            if drops_module_data(prev, &current_json) {
+                tracing::debug!("Auto-save: skipping save, a module is currently unavailable");
+                continue;
+            }
+        }
         let has_changed = match &*last_saved {
             Some(prev) => prev != &current_json,
             None => true, // First run, no previous state
@@ -345,6 +501,12 @@ pub fn create_router(
         auto_save,
     };
     
+    // Restore the saved settings before the auto-save task starts writing
+    let restore_state = settings_state.clone();
+    tokio::spawn(async move {
+        startup_restore_task(restore_state).await;
+    });
+
     // Spawn auto-save background task
     let task_state = settings_state.clone();
     tokio::spawn(async move {
@@ -354,6 +516,7 @@ pub fn create_router(
     Router::new()
         .route("/api/v1/settings/save", post(save_settings))
         .route("/api/v1/settings/restore", post(restore_settings))
+        .route("/api/v1/settings/reset", post(reset_settings))
         .with_state(settings_state)
 }
 
@@ -380,6 +543,33 @@ mod tests {
         let dir = path.parent().unwrap();
         assert!(dir.exists());
         assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn test_auto_save_starts_parked_until_restore_ran() {
+        let state = AutoSaveState::new(10);
+        assert!(!state.restore_done.load(Ordering::SeqCst),
+            "auto-save must not write before the startup restore has run");
+    }
+
+    #[test]
+    fn test_drops_module_data_detects_vanished_module() {
+        let with_speakereq = r#"{"version":"1","speakereq":{"whatever":1},"input_processor":null}"#;
+        let without = r#"{"version":"1","speakereq":null,"input_processor":null}"#;
+
+        // A snapshot taken while the node is gone must not overwrite real data
+        assert!(drops_module_data(with_speakereq, without));
+        // The other direction, and unchanged content, are fine to save
+        assert!(!drops_module_data(without, with_speakereq));
+        assert!(!drops_module_data(without, without));
+        assert!(!drops_module_data(with_speakereq, with_speakereq));
+    }
+
+    #[test]
+    fn test_drops_module_data_ignores_unparsable_previous() {
+        let garbage = "not json at all";
+        let current = r#"{"version":"1","speakereq":null,"input_processor":null}"#;
+        assert!(!drops_module_data(garbage, current));
     }
 
     #[test]
