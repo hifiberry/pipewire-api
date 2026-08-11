@@ -12,6 +12,8 @@ pipewire-api (2.1.4-1) stable; urgency=medium
     stored settings.
   * New POST /api/v1/settings/reset: reset all modules to defaults and delete
     the saved settings, so a factory reset also clears what survives a reboot.
+  * Build-Depends: add ca-certificates. The build downloads crates over HTTPS
+    and failed in a chroot without a CA bundle, like acr already declares.
 
  -- HiFiBerry <support@hifiberry.com>  Tue, 11 Aug 2026 12:00:00 +0000
 
