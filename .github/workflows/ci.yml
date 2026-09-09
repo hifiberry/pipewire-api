@@ -30,8 +30,20 @@ jobs:
       # TLS implementation, so openssl-sys needs the real headers/pkg-config
       # file to link against on Linux. Without this, `cargo test` fails at
       # the openssl-sys build script with "openssl.pc not found".
-      - name: Install system build dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      #
+      # The rest of this list is for the Python step further down: pipewire/
+      # wireplumber/pipewire-pulse are the daemon and its session manager,
+      # dbus is needed for wireplumber's own D-Bus-based modules (without a
+      # session bus it disconnects from PipeWire on startup instead of just
+      # warning), and graphviz provides `dot`, which the /api/v1/graph PNG
+      # endpoint shells out to.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config libssl-dev \
+            pipewire wireplumber pipewire-pulse pipewire-audio-client-libraries \
+            dbus graphviz
 
       # 51 #[test]/#[tokio::test] cases, all pure unit tests (config/param
       # parsing, wpctl/pw-cli output parsing, settings serialization, etc).
@@ -54,62 +66,133 @@ jobs:
         run: pip install -r requirements-test.txt
 
       # The Python suite (161 cases across 8 files under tests/) drives the
-      # API over HTTP: tests/conftest.py builds `pipewire-api` in release
-      # mode and starts it against a temporary HOME, then the test files
-      # exercise its endpoints with `requests`. That server in turn shells
-      # out to wpctl/pw-cli/pw-link/dot, which need a running PipeWire
-      # daemon (and, for several endpoints, real ALSA sinks/sources) that
-      # a GitHub-hosted runner does not have.
+      # real pipewire-api binary over HTTP, and that binary shells out to
+      # wpctl/pw-cli/pw-link/dot to do anything - so, unlike the Rust suite,
+      # it needs an actual PipeWire graph with real objects in it to
+      # exercise almost anything beyond 404 handling.
       #
-      # Verified locally (clean 3.13 venv, no PipeWire daemon or CLI tools
-      # present, matching this runner): running the full suite as-is gives
-      # 87 failed / 17 errored, because those code paths return HTTP 500 (no
-      # object to answer with) or, for the handful of Python-side helpers
-      # that call wpctl directly, raise before pytest can even record a
-      # skip. None of that is a self-skip - `pytest.mark.local_only`
-      # (already in this suite) marks tests needing *local disk/CLI* access
-      # for the local-vs-remote split, not "no PipeWire at all", so it does
-      # not help here. Rather than let CI be red on arrival, this step runs
-      # the exact subset that was confirmed green:
+      # This runner has no sound card, so there is nothing for WirePlumber's
+      # ALSA monitor to find. What it can still get, entirely in userspace:
+      #   - a session D-Bus bus (wireplumber needs one to reach its own
+      #     D-Bus-based modules; without it, it disconnects from PipeWire on
+      #     startup instead of just logging a warning about rtkit/portal)
+      #   - pipewire-pulse's compatibility layer, which creates a fallback
+      #     null sink ("Dummy Output") the moment it starts, the same way
+      #     classic PulseAudio's module-always-sink does
+      #   - pw-loopback, used to add the one thing nothing creates
+      #     automatically: a plain Audio/Source ("microphone")
+      # That's enough for WirePlumber to pick a default sink *and* source,
+      # which is what most of the suite (listing, links, volume, most of
+      # graph and settings) actually needs.
       #
-      #   ignored entirely (every test in the file needs live PipeWire
-      #   objects - a real sink/source/device/port/link/module list, or an
-      #   actual input-processor node):
-      #     - test_input_processor_api.py (0/16 pass without a daemon)
-      #     - test_links_api.py           (1/15 pass)
-      #     - test_listing_api.py         (2/36 pass)
-      #     - test_volume_api.py          (2/36 pass, 17 raise outright)
-      #
-      #   individually deselected - the rest of their file passes cleanly,
-      #   only these need real graph/settings data:
-      #     - test_graph_api.py: the four TestGraphDot cases that assert on
-      #       actual node/link content in the rendered dot graph (the PNG
-      #       and "endpoints exist" tests degrade gracefully and stay in)
-      #     - test_settings_api.py: the two TestAutoSave cases that expect
-      #       an auto-save triggered by a real settings change coming back
-      #       from a live module
-      #
-      # Everything else runs for real: test_speakereq.py's 26 cases all
-      # self-skip cleanly (pytest.skip when the speakereq module/node isn't
-      # found), and the remaining tests in test_graph_api.py/
-      # test_listing_api.py.../test_settings_api.py/test_volume_api.py that
-      # don't need live data pass normally. test_remote.py is a standalone
-      # CLI script for testing against a remote server, not a pytest test
-      # file - pytest collects 0 items from it, which is expected.
-      #
-      # Net: 52 of 161 cases actually execute here (24 passed + 28 skipped
-      # last verified), the rest are the honestly-labelled subset that
-      # needs a real PipeWire daemon and audio hardware to mean anything.
-      - name: Run Python tests
+      # Readiness is polled, not slept for a fixed duration - both for the
+      # PipeWire socket appearing (dependency wait before starting anything
+      # that connects to it) and for WirePlumber to have actually picked
+      # default sink/source (`wpctl inspect @DEFAULT_AUDIO_SINK@` succeeding,
+      # and pw-dump showing an Audio/Source object - `wpctl inspect
+      # @DEFAULT_AUDIO_SOURCE@` is not a reliable signal by itself, since it
+      # falls back to reporting the default *sink* instead of failing when
+      # no source exists yet). A fixed sleep here is exactly how this kind
+      # of job goes flaky under runner load.
+      - name: Start a headless PipeWire session
         run: |
-          python -m pytest tests/ -v \
-            --ignore=tests/test_input_processor_api.py \
-            --ignore=tests/test_links_api.py \
-            --ignore=tests/test_listing_api.py \
-            --ignore=tests/test_volume_api.py \
-            --deselect tests/test_graph_api.py::TestGraphDot::test_graph_dot_returns_200 \
-            --deselect tests/test_graph_api.py::TestGraphDot::test_graph_dot_is_valid_dot \
-            --deselect tests/test_graph_api.py::TestGraphDot::test_graph_dot_has_nodes \
-            --deselect tests/test_graph_api.py::TestGraphDot::test_graph_dot_has_color_coding \
-            --deselect tests/test_settings_api.py::TestAutoSave::test_auto_save_after_setting_change \
-            --deselect tests/test_settings_api.py::TestAutoSave::test_auto_save_after_default_reset
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> "$GITHUB_ENV"
+
+          DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --session --fork --print-address=1)
+          export DBUS_SESSION_BUS_ADDRESS
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+
+          nohup pipewire > /tmp/pipewire.log 2>&1 &
+          disown
+
+          for i in $(seq 1 50); do
+            [ -S "$XDG_RUNTIME_DIR/pipewire-0" ] && break
+            sleep 0.2
+          done
+          if [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
+            echo "pipewire socket never appeared" >&2
+            cat /tmp/pipewire.log
+            exit 1
+          fi
+
+          nohup pipewire-pulse > /tmp/pipewire-pulse.log 2>&1 &
+          disown
+          nohup wireplumber > /tmp/wireplumber.log 2>&1 &
+          disown
+          nohup pw-loopback \
+            --capture-props='media.class=Audio/Source node.name=ci-dummy-mic node.description=CI_Dummy_Mic' \
+            --playback-props='node.name=ci-dummy-mic-playback' \
+            > /tmp/pw-loopback.log 2>&1 &
+          disown
+
+          for i in $(seq 1 60); do
+            if wpctl inspect @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1 && \
+               pw-dump 2>/dev/null | grep -q '"Audio/Source"'; then
+              echo "PipeWire session ready after ${i}s"
+              wpctl status
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "PipeWire session did not become ready in time" >&2
+          echo "--- pipewire.log ---"; cat /tmp/pipewire.log
+          echo "--- pipewire-pulse.log ---"; cat /tmp/pipewire-pulse.log
+          echo "--- wireplumber.log ---"; cat /tmp/wireplumber.log
+          echo "--- pw-loopback.log ---"; cat /tmp/pw-loopback.log
+          exit 1
+
+      # No --ignore/--deselect: every one of the 161 cases is collected and
+      # actually attempted. Verified locally as the non-root `runner`-
+      # equivalent user (not root - PipeWire wants a real, user-owned
+      # XDG_RUNTIME_DIR, and root can paper over permission bugs a sibling
+      # repo's suite actually had) against a session built exactly as above:
+      #
+      #   112 passed, 46 skipped, 3 failed
+      #
+      # The 46 skips are all self-skips with a stated reason, not silence:
+      #   - test_input_processor_api.py (16) and test_speakereq.py (26) skip
+      #     every case - both need a specific HiFiBerry DSP module
+      #     (input-processor / speakereq) that only exists on real target
+      #     hardware with that module configured, which nothing in a
+      #     userspace-only PipeWire graph can fake
+      #   - test_settings_api.py (2) and test_volume_api.py (2) skip the
+      #     handful of cases that specifically need those same modules, or a
+      #     real ALSA *device* object (pw-loopback only creates plain nodes)
+      # None of that needed the kernel-module fallback (`modprobe snd-dummy`
+      # for a virtual ALSA card) mentioned as an option for this job: it
+      # would only turn some of these already-clean skips into passes, and
+      # nothing was left *failing* for want of a device, so there was
+      # nothing to reach for it for.
+      #
+      # The 3 failures are suite bugs, not environment gaps - they'd fail
+      # the same way against real target hardware:
+      #   - test_graph_api.py::TestGraphContent::
+      #     test_graph_links_reference_valid_nodes: the dot graph the server
+      #     renders legitimately includes "client_<id>" nodes for connected
+      #     PipeWire clients (src/graph.rs draws them deliberately, as a
+      #     lavender ellipse, with dashed "client_N -> node_N" edges), but
+      #     this test's regex for "defined node names" only recognises
+      #     node_/chain_/dev_/legend_ prefixes, not client_ - so any run
+      #     with more than one connected client fails it. This session has
+      #     several (pipewire-pulse, wireplumber, pw-loopback, wpctl), but a
+      #     real deployment with any audio app connected would trip the same
+      #     gap.
+      #   - test_settings_api.py::TestAutoSave::
+      #     test_auto_save_after_setting_change and
+      #     test_auto_save_after_default_reset: both call
+      #     PUT /api/v1/module/speakereq/gain/master and assume it succeeds,
+      #     but neither guards on the speakereq module being present the way
+      #     test_speakereq.py and their own file's other tests do (see
+      #     test_save_includes_speakereq_settings a few lines up, which
+      #     skips instead of asserting). Without speakereq configured, the
+      #     endpoint 404s and the settings file's "speakereq" key stays
+      #     null - both are missing the self-skip their siblings have.
+      # Fixing those is a one-line self-skip apiece in the test file, which
+      # is this repo's call to make, not something to route around from the
+      # workflow.
+      - name: Run Python tests
+        run: python -m pytest tests/ -v
