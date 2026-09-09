@@ -49,8 +49,12 @@ jobs:
       # parsing, wpctl/pw-cli output parsing, settings serialization, etc).
       # None of them touch a real PipeWire daemon, so they run unmodified
       # on a bare runner.
+      # No --locked: Cargo.lock is gitignored here, so a fresh checkout has
+      # none and --locked fails before anything builds. The flag only means
+      # something once a lockfile is committed, which is the usual convention
+      # for a crate shipping a binary; if that changes, add it back with it.
       - name: Run Rust tests
-        run: cargo test --locked
+        run: cargo test
 
       - uses: actions/setup-python@v5
         with:
