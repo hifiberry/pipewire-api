@@ -179,6 +179,11 @@ class TestGraphContent:
         defined_nodes.update(re.findall(r'(node_\d+) \[', dot))
         defined_nodes.update(re.findall(r'(chain_\d+) \[', dot))
         defined_nodes.update(re.findall(r'(dev_\d+) \[', dot))
+        # Connected PipeWire clients get their own dot node (see graph.rs's
+        # "Add clients" / "Client connections" sections), with dashed edges
+        # from client_<id> to the node(s) they own - a real, non-audio
+        # source of link edges, not just node_/chain_/dev_.
+        defined_nodes.update(re.findall(r'(client_\d+) \[', dot))
         # Also add legend nodes
         defined_nodes.update(re.findall(r'(legend_\w+) \[', dot))
         

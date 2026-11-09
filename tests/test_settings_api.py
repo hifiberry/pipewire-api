@@ -250,7 +250,12 @@ class TestAutoSave:
     def test_auto_save_after_setting_change(self, api_server):
         """Test that settings are auto-saved after a change"""
         import time
-        
+
+        # Check if speakereq module is available
+        status_response = requests.get(f"{api_server}/api/v1/module/speakereq/status")
+        if status_response.status_code != 200:
+            pytest.skip("SpeakerEQ module not available")
+
         # Get settings file path
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
@@ -284,7 +289,12 @@ class TestAutoSave:
     def test_auto_save_after_default_reset(self, api_server):
         """Test that settings are auto-saved after reset to defaults"""
         import time
-        
+
+        # Check if speakereq module is available
+        status_response = requests.get(f"{api_server}/api/v1/module/speakereq/status")
+        if status_response.status_code != 200:
+            pytest.skip("SpeakerEQ module not available")
+
         # Get settings file path
         response = requests.post(f"{api_server}/api/v1/settings/save")
         assert response.status_code == 200
